@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Web Crawler</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Web Crawler</h1>
+            <p>High-performance file extraction with intelligent filtering</p>
+        </header>
+
+        <div class="crawler-form">
+            <div class="input-grid">
+                <div class="form-group">
+                    <label for="url">Target URL</label>
+                    <textarea id="url" rows="1" placeholder="https://example.com" required class="input-styled"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="maxDepth">Crawl Depth</label>
+                    <input type="number" id="maxDepth" value="2" min="1" max="5" class="input-styled">
+                </div>
+                <div class="form-group">
+                    <label for="maxPages">Max Pages</label>
+                    <input type="number" id="maxPages" value="100" min="10" max="500" class="input-styled">
+                </div>
+            </div>
+
+            <div class="section-header">
+                <div class="section-title">Select File Types</div>
+                <button type="button" id="toggleSelectionBtn" class="btn-secondary">Select All</button>
+            </div>
+            
+            <div class="file-type-selector">
+                <div class="category-grid">
+                    
+                    <div class="category-card">
+                        <div class="card-header">
+                            <input type="checkbox" id="selectDocuments" class="category-checkbox">
+                            <label for="selectDocuments" class="card-title">Documents</label>
+                        </div>
+                        <div class="extensions-container">
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".pdf" data-category="documents"><span class="ext-tag">PDF</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".docx" data-category="documents"><span class="ext-tag">DOCX</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".xlsx" data-category="documents"><span class="ext-tag">XLSX</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".pptx" data-category="documents"><span class="ext-tag">PPTX</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".txt" data-category="documents"><span class="ext-tag">TXT</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".csv" data-category="documents"><span class="ext-tag">CSV</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".rtf" data-category="documents"><span class="ext-tag">RTF</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".odt" data-category="documents"><span class="ext-tag">ODT</span></label>
+                        </div>
+                    </div>
+
+                    <div class="category-card">
+                        <div class="card-header">
+                            <input type="checkbox" id="selectImages" class="category-checkbox">
+                            <label for="selectImages" class="card-title">Images</label>
+                        </div>
+                        <div class="extensions-container">
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".jpg" data-category="images"><span class="ext-tag">JPG</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".png" data-category="images"><span class="ext-tag">PNG</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".gif" data-category="images"><span class="ext-tag">GIF</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".svg" data-category="images"><span class="ext-tag">SVG</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".webp" data-category="images"><span class="ext-tag">WEBP</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".ico" data-category="images"><span class="ext-tag">ICO</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".bmp" data-category="images"><span class="ext-tag">BMP</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".tiff" data-category="images"><span class="ext-tag">TIFF</span></label>
+                        </div>
+                    </div>
+
+                    <div class="category-card">
+                        <div class="card-header">
+                            <input type="checkbox" id="selectVideos" class="category-checkbox">
+                            <label for="selectVideos" class="card-title">Videos</label>
+                        </div>
+                        <div class="extensions-container">
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".mp4" data-category="videos"><span class="ext-tag">MP4</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".mov" data-category="videos"><span class="ext-tag">MOV</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".avi" data-category="videos"><span class="ext-tag">AVI</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".mkv" data-category="videos"><span class="ext-tag">MKV</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".webm" data-category="videos"><span class="ext-tag">WEBM</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".wmv" data-category="videos"><span class="ext-tag">WMV</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".flv" data-category="videos"><span class="ext-tag">FLV</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".m4v" data-category="videos"><span class="ext-tag">M4V</span></label>
+                        </div>
+                    </div>
+
+                    <div class="category-card">
+                        <div class="card-header">
+                            <input type="checkbox" id="selectAudio" class="category-checkbox">
+                            <label for="selectAudio" class="card-title">Audio</label>
+                        </div>
+                        <div class="extensions-container">
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".mp3" data-category="audio"><span class="ext-tag">MP3</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".wav" data-category="audio"><span class="ext-tag">WAV</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".flac" data-category="audio"><span class="ext-tag">FLAC</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".m4a" data-category="audio"><span class="ext-tag">M4A</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".ogg" data-category="audio"><span class="ext-tag">OGG</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".aac" data-category="audio"><span class="ext-tag">AAC</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".wma" data-category="audio"><span class="ext-tag">WMA</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".mid" data-category="audio"><span class="ext-tag">MIDI</span></label>
+                        </div>
+                    </div>
+
+                    <div class="category-card">
+                        <div class="card-header">
+                            <input type="checkbox" id="selectArchives" class="category-checkbox">
+                            <label for="selectArchives" class="card-title">Archives</label>
+                        </div>
+                        <div class="extensions-container">
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".zip" data-category="archives"><span class="ext-tag">ZIP</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".rar" data-category="archives"><span class="ext-tag">RAR</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".7z" data-category="archives"><span class="ext-tag">7Z</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".tar" data-category="archives"><span class="ext-tag">TAR</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".gz" data-category="archives"><span class="ext-tag">GZ</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".iso" data-category="archives"><span class="ext-tag">ISO</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".xz" data-category="archives"><span class="ext-tag">XZ</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".bz2" data-category="archives"><span class="ext-tag">BZ2</span></label>
+                        </div>
+                    </div>
+
+                    <div class="category-card">
+                        <div class="card-header">
+                            <input type="checkbox" id="selectCode" class="category-checkbox">
+                            <label for="selectCode" class="card-title">Code Source</label>
+                        </div>
+                        <div class="extensions-container">
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".html" data-category="code"><span class="ext-tag">HTML</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".css" data-category="code"><span class="ext-tag">CSS</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".js" data-category="code"><span class="ext-tag">JS</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".php" data-category="code"><span class="ext-tag">PHP</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".json" data-category="code"><span class="ext-tag">JSON</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".py" data-category="code"><span class="ext-tag">PY</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".sql" data-category="code"><span class="ext-tag">SQL</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".xml" data-category="code"><span class="ext-tag">XML</span></label>
+                        </div>
+                    </div>
+
+                </div>
+                
+                <!-- Other / Custom Extensions Section -->
+                <div class="category-card" style="grid-column: 1 / -1; margin-top: 10px;">
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <div style="display: flex; align-items: center; min-width: 200px;">
+                            <input type="checkbox" id="selectOther" class="category-checkbox">
+                            <label for="selectOther" class="card-title" style="margin: 0;">Other / Custom Extensions</label>
+                        </div>
+                        <div style="flex: 1;">
+                            <input type="text" id="customExtensions" placeholder=".apk, .msi, .exe, .dmg, etc." class="input-styled" style="width: 100%;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            
+            <div class="submit-area">
+                <button id="startCrawl" class="btn-primary">
+                    <span id="btnText">Start Crawling Process</span>
+                </button>
+            </div>
+        </div>
+
+        <div id="statusSection" class="status-section hidden">
+            <div style="padding: 20px; text-align: center;">
+                <p id="statusText">Processing...</p>
+                <div style="width: 100%; background: #eee; height: 10px; border-radius: 5px; margin-top: 10px;">
+                    <div id="progressBar" style="width: 0%; height: 100%; background: var(--primary-gradient); border-radius: 5px; transition: width 0.3s;"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="resultsSection" class="results-section hidden">
+             <div style="padding: 40px;">
+                <div id="filesList" style="display: grid; gap: 10px;"></div>
+             </div>
+        </div>
+    </div>
+    
+    <div id="fileModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalFileName">Preview</h3>
+                <span class="modal-close">&times;</span>
+            </div>
+            <div class="modal-body" id="modalFileContent">
+                <!-- Content sẽ được load động -->
+            </div>
+        </div>
+    </div>
+
+    <script src="assets/js/script.js?v=20260115"></script>
+</body>
+</html>

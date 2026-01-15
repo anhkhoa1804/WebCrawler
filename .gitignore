@@ -1,0 +1,40 @@
+# PHP Session Files
+/tmp/
+*.session
+
+# IDE Files
+.vscode/
+.idea/
+*.sublime-*
+
+# OS Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+error_log
+access_log
+
+# Temporary Files
+*.tmp
+*.temp
+*.swp
+*~
+
+# Environment Files
+.env
+.env.local
+
+# Composer (if used)
+/vendor/
+composer.lock
+
+# Node modules (if any)
+node_modules/
+package-lock.json
+
+# Build files
+/dist/
+/build/
