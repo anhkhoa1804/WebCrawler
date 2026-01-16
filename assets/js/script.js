@@ -384,7 +384,7 @@ function displayResults(files, stats, isFiltered = false) {
             </div>
             <input type="text" id="searchFiles" placeholder="Search files..." value="${currentSearchTerm}" class="input-styled" style="flex:1; min-width:200px; padding:12px 16px; border:2px solid #cbd5e1; border-radius:8px; font-size:0.95rem;">
             <button onclick="selectAllFiles()" class="btn-secondary" style="white-space:nowrap; padding:12px 24px; font-weight:700; background:linear-gradient(135deg, #10b981 0%, #059669 100%); color:white; border:none; border-radius:8px; box-shadow:0 2px 8px rgba(16,185,129,0.3);">Select ${totalFilteredCount} file${totalFilteredCount !== 1 ? 's' : ''}</button>
-            <button onclick="handleDownloadSelected()" class="btn-secondary" style="white-space:nowrap; padding:12px 24px; font-weight:700; background:linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color:white; border:none; border-radius:8px; box-shadow:0 2px 8px rgba(245,158,11,0.3);">Download ${totalFilteredCount} file${totalFilteredCount !== 1 ? 's' : ''}</button>
+            <button onclick="handleDownloadSelected()" class="btn-secondary" style="white-space:nowrap; padding:12px 24px; font-weight:700; background:linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color:white; border:none; border-radius:8px; box-shadow:0 2px 8px rgba(245,158,11,0.3);">Download</button>
         </div>
     `;
     

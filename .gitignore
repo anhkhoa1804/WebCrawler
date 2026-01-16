@@ -38,3 +38,13 @@ package-lock.json
 # Build files
 /dist/
 /build/
+
+# Database and Data Files
+/data/*.db
+/data/*.db-journal
+/data/*.sqlite
+/data/*.sqlite3
+/data/logs/
+
+# Cookie Files (crawler session cookies)
+*.txt

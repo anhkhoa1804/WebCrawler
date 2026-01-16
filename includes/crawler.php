@@ -3,6 +3,12 @@ ini_set('display_errors', 0);
 ini_set('max_execution_time', 300);
 error_reporting(E_ALL);
 
+// Load new lightweight modules
+require_once __DIR__ . '/database.php';
+require_once __DIR__ . '/multi_curl.php';
+require_once __DIR__ . '/login_handler.php';
+require_once __DIR__ . '/smart_filters.php';
+
 class WebCrawler {
     private $baseUrl;
     private $visitedUrls = [];
@@ -13,11 +19,18 @@ class WebCrawler {
     private $pageCount = 0;
     private $errors = [];
     private $timeout = 15;
-    private $proxies = [];
     private $cookieFile;
     private $robotsChecker = null;
     private $startTime;
     private $maxExecutionTime = 300;
+    
+    // New modules
+    private $database = null;
+    private $multiCurl = null;
+    private $loginHandler = null;
+    private $useDatabase = false;
+    private $useParallelFetch = false;
+    private $sessionId = null;
     
     public function __construct($baseUrl, $allowedExtensions, $maxDepth = 2, $maxPages = 50, $options = []) {
         $this->baseUrl = $this->normalizeUrl($baseUrl);
@@ -27,13 +40,52 @@ class WebCrawler {
         $this->startTime = time();
         
         error_log("[CRAWLER] Initialized with extensions: " . json_encode($allowedExtensions));
-        
-        if (isset($options['proxies']) && is_array($options['proxies'])) {
-            $this->proxies = $options['proxies'];
-        }
+        error_log("[CRAWLER] Base URL: " . $this->baseUrl);
+        error_log("[CRAWLER] Max Depth: " . $maxDepth . ", Max Pages: " . $maxPages);
         
         $this->cookieFile = sys_get_temp_dir() . '/crawler_cookies_' . md5($this->baseUrl) . '.txt';
-
+        
+        // Initialize Database if enabled
+        if (isset($options['use_database']) && $options['use_database']) {
+            try {
+                $this->database = new CrawlerDatabase($options['db_path'] ?? null);
+                $this->useDatabase = true;
+                $this->sessionId = $this->database->createSession($this->baseUrl, $maxDepth, $maxPages);
+                error_log("[CRAWLER] SQLite Database enabled");
+            } catch (Exception $e) {
+                error_log("[CRAWLER] Database initialization failed: " . $e->getMessage());
+            }
+        }
+        
+        // Initialize Multi-cURL if enabled
+        if (isset($options['use_parallel']) && $options['use_parallel']) {
+            $this->multiCurl = new MultiCurl([
+                'max_connections' => $options['parallel_connections'] ?? 5,
+                'timeout' => $options['timeout'] ?? 15,
+                'cookie_file' => $this->cookieFile
+            ]);
+            $this->useParallelFetch = true;
+            error_log("[CRAWLER] Parallel fetching enabled (max {$options['parallel_connections']} connections)");
+        }
+        
+        // Initialize Login Handler if credentials provided
+        if (isset($options['login']) && is_array($options['login'])) {
+            $this->loginHandler = new LoginHandler($this->cookieFile);
+            
+            // Perform login
+            $loginSuccess = $this->loginHandler->login(
+                $options['login']['url'],
+                $options['login']['credentials'],
+                $options['login']['options'] ?? []
+            );
+            
+            if ($loginSuccess) {
+                error_log("[CRAWLER] Login successful");
+            } else {
+                error_log("[CRAWLER] Login failed");
+            }
+        }
+        
         $this->robotsChecker = null;
     }
     
@@ -52,6 +104,15 @@ class WebCrawler {
     }
     
     private function fetchUrl($url) {
+        // Use Login Handler for authenticated requests
+        if ($this->loginHandler && $this->loginHandler->isLoggedIn()) {
+            $content = $this->loginHandler->fetchAuthenticated($url);
+            if ($content) {
+                return $content;
+            }
+        }
+        
+        // Standard CURL fetch
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -83,14 +144,6 @@ class WebCrawler {
         curl_setopt($ch, CURLOPT_COOKIEJAR, $this->cookieFile);
         curl_setopt($ch, CURLOPT_COOKIEFILE, $this->cookieFile);
         curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2_0);
-        
-        if (!empty($this->proxies)) {
-            $proxy = $this->proxies[array_rand($this->proxies)];
-            curl_setopt($ch, CURLOPT_PROXY, $proxy['host']);
-            if (isset($proxy['user'])) {
-                curl_setopt($ch, CURLOPT_PROXYUSERPWD, $proxy['user'] . ':' . $proxy['pass']);
-            }
-        }
         
         $content = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -141,13 +194,23 @@ class WebCrawler {
         if ($depth > $this->maxDepth || $this->pageCount >= $this->maxPages) return;
         
         $url = $this->normalizeUrl($url);
-        if (in_array($url, $this->visitedUrls)) return;
+        
+        // Check if already visited (database or array)
+        if ($this->useDatabase && $this->database) {
+            if ($this->database->isVisited($url)) return;
+        } else {
+            if (in_array($url, $this->visitedUrls)) return;
+        }
         
         if (count($this->visitedUrls) > $this->maxPages * 2) return;
         
         // Check Robots.txt
         if ($this->robotsChecker && !$this->robotsChecker->isAllowed($url)) return;
         
+        // Mark as visited
+        if ($this->useDatabase && $this->database) {
+            $this->database->markVisited($url, $this->baseUrl, $depth);
+        }
         $this->visitedUrls[] = $url;
         $this->pageCount++;
         
@@ -162,6 +225,12 @@ class WebCrawler {
                     'status' => 'crawling',
                     'time_elapsed' => time() - $this->startTime
                 ];
+                
+                // Update database session if enabled
+                if ($this->useDatabase && $this->database && $this->sessionId) {
+                    $this->database->updateSession($this->sessionId, $this->pageCount, count($this->foundFiles));
+                }
+                
                 session_write_close();
                 
                 if (ob_get_level() > 0) @ob_flush();
@@ -182,25 +251,92 @@ class WebCrawler {
         
         error_log("[CRAWLER] Extracted " . count($extracted['files']) . " files and " . count($extracted['links']) . " links from $url");
         
+        // Apply smart filters to files
+        if (count($extracted['files']) > 0) {
+            $fileType = $this->detectFileType($extracted['files'][0] ?? '');
+            $extracted['files'] = SmartFilters::applyAllFilters($extracted['files'], [
+                'type' => $fileType,
+                'sort_by_quality' => true
+            ]);
+            error_log("[CRAWLER] After filtering: " . count($extracted['files']) . " files");
+        }
+        
         foreach ($extracted['files'] as $fileUrl) {
             $this->addFile($fileUrl);
         }
         
-        $processedLinks = 0;
-        $maxLinksPerPage = 50;
-        
-        foreach ($extracted['links'] as $link) {
-            if ($this->pageCount >= $this->maxPages) break;
-            if ($processedLinks >= $maxLinksPerPage) break;
+        // Parallel fetch next pages if enabled
+        if ($this->useParallelFetch && $this->multiCurl && count($extracted['links']) > 5) {
+            error_log("[CRAWLER] Using parallel fetch for " . count($extracted['links']) . " links");
+            $this->crawlParallel($extracted['links'], $depth);
+        } else {
+            // Sequential crawl
+            $processedLinks = 0;
+            $maxLinksPerPage = 50;
             
-            $baseHost = str_replace('www.', '', parse_url($this->baseUrl, PHP_URL_HOST));
-            $linkHost = str_replace('www.', '', parse_url($link, PHP_URL_HOST));
-            
-            if ($baseHost === $linkHost && !in_array($this->normalizeUrl($link), $this->visitedUrls)) {
-                $this->crawl($link, $depth + 1);
-                $processedLinks++;
+            foreach ($extracted['links'] as $link) {
+                if ($this->pageCount >= $this->maxPages) break;
+                if ($processedLinks >= $maxLinksPerPage) break;
+                
+                $baseHost = str_replace('www.', '', parse_url($this->baseUrl, PHP_URL_HOST));
+                $linkHost = str_replace('www.', '', parse_url($link, PHP_URL_HOST));
+                
+                if ($baseHost === $linkHost && !in_array($this->normalizeUrl($link), $this->visitedUrls)) {
+                    $this->crawl($link, $depth + 1);
+                    $processedLinks++;
+                }
             }
         }
+    }
+    
+    /**
+     * Crawl multiple URLs in parallel
+     */
+    private function crawlParallel($links, $depth) {
+        $validLinks = [];
+        $baseHost = str_replace('www.', '', parse_url($this->baseUrl, PHP_URL_HOST));
+        
+        foreach ($links as $link) {
+            if ($this->pageCount >= $this->maxPages) break;
+            
+            $linkHost = str_replace('www.', '', parse_url($link, PHP_URL_HOST));
+            $normalized = $this->normalizeUrl($link);
+            
+            if ($baseHost === $linkHost && !in_array($normalized, $this->visitedUrls)) {
+                $validLinks[] = $link;
+            }
+            
+            if (count($validLinks) >= 10) break; // Limit batch size
+        }
+        
+        if (empty($validLinks)) return;
+        
+        // Fetch all URLs in parallel
+        $results = $this->multiCurl->fetchAll($validLinks, function($url, $result) use ($depth) {
+            if ($result['success']) {
+                $this->visitedUrls[] = $this->normalizeUrl($url);
+                $this->pageCount++;
+                
+                // Extract and process files from this page
+                $extracted = $this->extractLinks($result['content'], $url);
+                
+                foreach ($extracted['files'] as $fileUrl) {
+                    $this->addFile($fileUrl);
+                }
+                
+                error_log("[CRAWLER] Parallel fetched: $url (" . strlen($result['content']) . " bytes, " . count($extracted['files']) . " files)");
+            }
+        });
+    }
+    
+    /**
+     * Detect file type from URL
+     */
+    private function detectFileType($url) {
+        if (preg_match('/\.(jpg|jpeg|png|gif|svg|webp|bmp|tiff)$/i', $url)) return 'image';
+        if (preg_match('/\.(pdf|doc|docx|txt|csv)$/i', $url)) return 'document';
+        if (preg_match('/\.(mp4|avi|mkv|webm)$/i', $url)) return 'video';
+        return 'other';
     }
 
     private function extractLinks($html, $currentUrl) {
@@ -245,18 +381,28 @@ class WebCrawler {
         
         $extsRegex = implode('|', array_map(function($e) { return preg_quote(ltrim($e, '.'), '/'); }, $this->allowedExtensions));
         if ($extsRegex) {
+            error_log("[CRAWLER] Regex pattern for extensions: " . $extsRegex);
             preg_match_all('/https?:\/\/[^\s"\'<>]{1,500}\.(' . $extsRegex . ')(?=[\s"\'<>]|$)/i', $html, $matches);
             if (!empty($matches[0])) {
+                error_log("[CRAWLER] Regex found " . count($matches[0]) . " potential files");
                 foreach ($matches[0] as $m) {
                     $m = preg_replace('/[\\\\"\)\]\}]+$/', '', $m);
                     if (filter_var($m, FILTER_VALIDATE_URL)) {
                         $fileUrls[] = $m;
                     }
                 }
+            } else {
+                error_log("[CRAWLER] Regex found 0 files in HTML");
             }
+        } else {
+            error_log("[CRAWLER] WARNING: No extensions to match!");
         }
         
-        return ['links' => array_unique(array_filter($links)), 'files' => array_unique(array_filter($fileUrls))];
+        $uniqueLinks = array_unique(array_filter($links));
+        $uniqueFiles = array_unique(array_filter($fileUrls));
+        error_log("[CRAWLER] Total extracted: " . count($uniqueLinks) . " links, " . count($uniqueFiles) . " files");
+        
+        return ['links' => $uniqueLinks, 'files' => $uniqueFiles];
     }
     
     private function getAbsoluteUrl($rel, $base) {
@@ -298,13 +444,22 @@ class WebCrawler {
         $ext = '.' . strtolower(pathinfo($filename, PATHINFO_EXTENSION));
         $category = $this->getFileCategory($ext);
         
-        $this->foundFiles[] = [
+        $fileData = [
             'url' => $url,
             'filename' => urldecode($filename),
             'extension' => $ext,
             'size' => 'Unknown',
             'category' => $category
         ];
+        
+        $this->foundFiles[] = $fileData;
+        
+        error_log("[CRAWLER] Added file: $url (category: $category)");
+        
+        // Save to database if enabled (size will be updated later)
+        if ($this->useDatabase && $this->database) {
+            $this->database->addFile($url, $filename, $category, $this->baseUrl, null);
+        }
     }
     
     private function getFileCategory($ext) {

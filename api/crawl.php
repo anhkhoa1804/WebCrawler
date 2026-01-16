@@ -53,7 +53,14 @@ try {
     $extensions = $input['extensions'] ?? [];
     $maxDepth = (int)($input['maxDepth'] ?? 2);
     $maxPages = (int)($input['maxPages'] ?? 50);
-    $options = [];
+    
+    // Enable database and parallel processing by default
+    $options = [
+        'use_database' => true,
+        'use_parallel' => true,
+        'parallel_connections' => 5,
+        'timeout' => 15
+    ];
     
     if ($maxPages > 100) $maxPages = 100;
     
