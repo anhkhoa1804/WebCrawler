@@ -103,8 +103,11 @@ while (!feof($handle)) {
 }
 fclose($handle);
 
+// Read the size before deleting; stat on a removed file raises a PHP warning into the binary response.
+$sentBytes = filesize($tempFile);
+
 // Cleanup
 @unlink($tempFile);
 
-error_log("[STREAM API] Download complete: " . filesize($tempFile) . " bytes");
+error_log("[STREAM API] Download complete: " . $sentBytes . " bytes");
 exit;

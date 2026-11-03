@@ -28,7 +28,7 @@ class StreamingDownloader {
      * Check if FFmpeg is installed and accessible
      */
     public function isFFmpegAvailable() {
-        $cmd = escapeshellcmd($this->ffmpegPath) . ' -version 2>&1';
+        $cmd = escapeshellarg($this->ffmpegPath) . ' -version 2>&1';
         $output = shell_exec($cmd);
         return strpos($output, 'ffmpeg version') !== false;
     }
@@ -71,20 +71,21 @@ class StreamingDownloader {
         // -bsf:a aac_adtstoasc: fix AAC stream format
         // -movflags +faststart: optimize for web streaming
         
+        // Every externally supplied value is passed through escapeshellarg: the stream URL comes from the request.
         $command = sprintf(
-            '%s -i "%s" -c copy -bsf:a aac_adtstoasc -movflags +faststart "%s" 2>&1',
-            escapeshellcmd($this->ffmpegPath),
-            $streamUrl,
-            $outputFile
+            '%s -i %s -c copy -bsf:a aac_adtstoasc -movflags +faststart %s 2>&1',
+            escapeshellarg($this->ffmpegPath),
+            escapeshellarg($streamUrl),
+            escapeshellarg($outputFile)
         );
         
         // For audio extraction (MP3)
         if ($outputFormat === 'mp3') {
             $command = sprintf(
-                '%s -i "%s" -vn -acodec libmp3lame -q:a 2 "%s" 2>&1',
-                escapeshellcmd($this->ffmpegPath),
-                $streamUrl,
-                $outputFile
+                '%s -i %s -vn -acodec libmp3lame -q:a 2 %s 2>&1',
+                escapeshellarg($this->ffmpegPath),
+                escapeshellarg($streamUrl),
+                escapeshellarg($outputFile)
             );
         }
         
@@ -130,12 +131,13 @@ class StreamingDownloader {
             return null;
         }
         
-        $ffprobe = str_replace('ffmpeg', 'ffprobe', $this->ffmpegPath);
+        // Replace only the executable name; the directory may also contain "ffmpeg" (e.g. ffmpeg-8.0.1-full_build).
+        $ffprobe = preg_replace('/ffmpeg(\.exe)?$/i', 'ffprobe$1', $this->ffmpegPath);
         
         $command = sprintf(
-            '%s -v quiet -print_format json -show_format -show_streams "%s" 2>&1',
-            escapeshellcmd($ffprobe),
-            $streamUrl
+            '%s -v quiet -print_format json -show_format -show_streams %s 2>&1',
+            escapeshellarg($ffprobe),
+            escapeshellarg($streamUrl)
         );
         
         $output = shell_exec($command);

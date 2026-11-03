@@ -47,7 +47,8 @@ $addedNames = [];
 foreach ($files as $fileUrl) {
     try {
         $path = parse_url($fileUrl, PHP_URL_PATH);
-        $filename = urldecode(basename($path));
+        // Decode before basename so an encoded separator (%2F) cannot form a ../ entry name inside the ZIP.
+        $filename = basename(urldecode((string)$path));
         
         if (empty($filename) || $filename == '/' || $filename == '.') {
             $filename = 'file_' . uniqid() . '.dat';

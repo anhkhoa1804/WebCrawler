@@ -16,6 +16,9 @@ if (empty($filename) || $filename === '/' || $filename === '.') {
     $filename = 'download_' . time() . '.dat';
 }
 
+// Keep the name valid inside the quoted Content-Disposition value (no quotes, slashes, semicolons or control characters).
+$filename = preg_replace('#[\x00-\x1F"\x5C/;]+#', '_', (string)$filename);
+
 $parsed = parse_url($url);
 $host = strtolower((string)($parsed['host'] ?? ''));
 
