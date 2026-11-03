@@ -53,6 +53,7 @@ node_modules/
 /data/*.sqlite
 /data/*.sqlite3
 /data/logs/
+/data/*.pid
 
 # Cookie Files (crawler session cookies)
 *.txt
