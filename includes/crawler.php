@@ -181,6 +181,10 @@ class WebCrawler {
     private function debugLog($message) {
         if ($this->debugLogFile) {
             $timestamp = date('Y-m-d H:i:s');
+            // Keep the log bounded: once it passes 1 MB, move it aside (one previous copy kept as .1).
+            if (is_file($this->debugLogFile) && filesize($this->debugLogFile) > 1048576) {
+                @rename($this->debugLogFile, $this->debugLogFile . '.1');
+            }
             @file_put_contents($this->debugLogFile, "[$timestamp] $message\n", FILE_APPEND);
         }
     }
