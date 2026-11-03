@@ -359,6 +359,11 @@ function startCrawling() {
                 setDebugHint('sid: ' + data.sid);
             }
             
+            // Tell the user about requested options the server ignored (for example queue or login).
+            if (Array.isArray(data.warnings)) {
+                data.warnings.forEach(msg => showNotification(msg, 'info'));
+            }
+
             if (data.stats && data.stats.errors && data.stats.errors.length > 0) {
                 console.error('[CRAWLER] Errors during crawl:', data.stats.errors);
                 data.stats.errors.forEach((err, idx) => {
