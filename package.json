@@ -1,0 +1,15 @@
+{
+    "name": "web-crawler-puppeteer-bridge",
+    "version": "1.0.0",
+    "description": "Puppeteer bridge for PHP Web Crawler",
+    "main": "includes/puppeteer_bridge.js",
+    "scripts": {
+        "test": "node includes/puppeteer_bridge.js '{\"url\":\"https://example.com\"}'",
+        "install-chromium": "node node_modules/puppeteer/install.js"
+    },
+    "dependencies": {
+        "puppeteer": "^21.11.0"
+    },
+    "author": "WebCrawler Team",
+    "license": "MIT"
+}
