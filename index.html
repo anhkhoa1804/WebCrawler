@@ -30,6 +30,8 @@
                 </div>
             </div>
 
+
+
             <div class="section-header">
                 <div class="section-title">Select File Types</div>
                 <button type="button" id="toggleSelectionBtn" class="btn-secondary">Select All</button>
@@ -52,6 +54,10 @@
                             <label class="ext-label"><input type="checkbox" name="extensions" value=".csv" data-category="documents"><span class="ext-tag">CSV</span></label>
                             <label class="ext-label"><input type="checkbox" name="extensions" value=".rtf" data-category="documents"><span class="ext-tag">RTF</span></label>
                             <label class="ext-label"><input type="checkbox" name="extensions" value=".odt" data-category="documents"><span class="ext-tag">ODT</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".doc" data-category="documents"><span class="ext-tag">DOC</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".xls" data-category="documents"><span class="ext-tag">XLS</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".ppt" data-category="documents"><span class="ext-tag">PPT</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".epub" data-category="documents"><span class="ext-tag">EPUB</span></label>
                         </div>
                     </div>
 
@@ -62,6 +68,7 @@
                         </div>
                         <div class="extensions-container">
                             <label class="ext-label"><input type="checkbox" name="extensions" value=".jpg" data-category="images"><span class="ext-tag">JPG</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".jpeg" data-category="images"><span class="ext-tag">JPEG</span></label>
                             <label class="ext-label"><input type="checkbox" name="extensions" value=".png" data-category="images"><span class="ext-tag">PNG</span></label>
                             <label class="ext-label"><input type="checkbox" name="extensions" value=".gif" data-category="images"><span class="ext-tag">GIF</span></label>
                             <label class="ext-label"><input type="checkbox" name="extensions" value=".svg" data-category="images"><span class="ext-tag">SVG</span></label>
@@ -69,6 +76,9 @@
                             <label class="ext-label"><input type="checkbox" name="extensions" value=".ico" data-category="images"><span class="ext-tag">ICO</span></label>
                             <label class="ext-label"><input type="checkbox" name="extensions" value=".bmp" data-category="images"><span class="ext-tag">BMP</span></label>
                             <label class="ext-label"><input type="checkbox" name="extensions" value=".tiff" data-category="images"><span class="ext-tag">TIFF</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".jfif" data-category="images"><span class="ext-tag">JFIF</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".avif" data-category="images"><span class="ext-tag">AVIF</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".heic" data-category="images"><span class="ext-tag">HEIC</span></label>
                         </div>
                     </div>
 
@@ -86,6 +96,10 @@
                             <label class="ext-label"><input type="checkbox" name="extensions" value=".wmv" data-category="videos"><span class="ext-tag">WMV</span></label>
                             <label class="ext-label"><input type="checkbox" name="extensions" value=".flv" data-category="videos"><span class="ext-tag">FLV</span></label>
                             <label class="ext-label"><input type="checkbox" name="extensions" value=".m4v" data-category="videos"><span class="ext-tag">M4V</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".ogg" data-category="videos"><span class="ext-tag">OGG</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".ogv" data-category="videos"><span class="ext-tag">OGV</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".3gp" data-category="videos"><span class="ext-tag">3GP</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".mpg" data-category="videos"><span class="ext-tag">MPG</span></label>
                         </div>
                     </div>
 
@@ -103,6 +117,10 @@
                             <label class="ext-label"><input type="checkbox" name="extensions" value=".aac" data-category="audio"><span class="ext-tag">AAC</span></label>
                             <label class="ext-label"><input type="checkbox" name="extensions" value=".wma" data-category="audio"><span class="ext-tag">WMA</span></label>
                             <label class="ext-label"><input type="checkbox" name="extensions" value=".mid" data-category="audio"><span class="ext-tag">MIDI</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".opus" data-category="audio"><span class="ext-tag">OPUS</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".ape" data-category="audio"><span class="ext-tag">APE</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".alac" data-category="audio"><span class="ext-tag">ALAC</span></label>
+                            <label class="ext-label"><input type="checkbox" name="extensions" value=".oga" data-category="audio"><span class="ext-tag">OGA</span></label>
                         </div>
                     </div>
 
@@ -161,22 +179,29 @@
                 <button id="startCrawl" class="btn-primary">
                     <span id="btnText">Start Crawling Process</span>
                 </button>
-            </div>
-        </div>
-
-        <div id="statusSection" class="status-section hidden">
-            <div style="padding: 20px; text-align: center;">
-                <p id="statusText">Processing...</p>
-                <div style="width: 100%; background: #eee; height: 10px; border-radius: 5px; margin-top: 10px;">
-                    <div id="progressBar" style="width: 0%; height: 100%; background: var(--primary-gradient); border-radius: 5px; transition: width 0.3s;"></div>
+                <div id="errorMessage" class="error-message hidden" style="margin-top: 15px; padding: 15px; background: #fee; border: 1px solid #fcc; border-radius: 8px; color: #c33;">
+                    <strong>❌ Error:</strong> <span id="errorText"></span>
                 </div>
             </div>
         </div>
-        
+
         <div id="resultsSection" class="results-section hidden">
              <div style="padding: 40px;">
                 <div id="filesList" style="display: grid; gap: 10px;"></div>
              </div>
+        </div>
+
+        <div id="debugSection" class="results-section hidden">
+            <div style="padding: 20px;">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+                    <h3 style="margin: 0;">Debug</h3>
+                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                        <span id="debugHint" style="opacity:.7; font-size:13px;"></span>
+                        <button type="button" id="copyDebugBtn" class="btn-secondary">Copy debug</button>
+                    </div>
+                </div>
+                <pre id="debugOutput" style="margin-top:12px; white-space:pre-wrap; background:#0b1220; color:#e5e7eb; padding:12px; border-radius:8px; max-height:260px; overflow:auto;"></pre>
+            </div>
         </div>
     </div>
     
@@ -192,6 +217,15 @@
         </div>
     </div>
 
-    <script src="assets/js/script.js?v=20260115"></script>
+    <script src="assets/js/script.js?v=20260119-2"></script>
+    <script>
+        // Toggle queue options visibility
+        document.getElementById('useQueue')?.addEventListener('change', function() {
+            const queueOptions = document.getElementById('queueOptions');
+            if (queueOptions) {
+                queueOptions.style.display = this.checked ? 'block' : 'none';
+            }
+        });
+    </script>
 </body>
 </html>

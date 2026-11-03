@@ -1,4 +1,4 @@
-let foundFiles = [];
+﻿let foundFiles = [];
 let filteredFiles = [];
 let progressInterval = null;
 let isCrawling = false;
@@ -8,6 +8,72 @@ let selectedCategories = ['all'];
 let currentSearchTerm = '';
 let allCheckedFiles = new Set();
 let searchTimeout = null;
+
+const DEBUG_MODE = new URLSearchParams(window.location.search).get('debug') === '1';
+
+function appendDebug(label, payload) {
+    if (!DEBUG_MODE) return;
+    const out = document.getElementById('debugOutput');
+    if (!out) return;
+
+    const ts = new Date().toISOString();
+    let text;
+    try {
+        if (typeof payload === 'string') text = payload;
+        else text = JSON.stringify(payload, null, 2);
+    } catch (e) {
+        text = String(payload);
+    }
+
+    out.textContent = `${out.textContent}${out.textContent ? "\n\n" : ""}[${ts}] ${label}\n${text}`;
+    out.scrollTop = out.scrollHeight;
+}
+
+function setDebugHint(text) {
+    if (!DEBUG_MODE) return;
+    const hint = document.getElementById('debugHint');
+    if (hint) hint.textContent = text;
+}
+
+// Progress bar UI removed by request (keep progress endpoint for debugging only)
+
+// Get base API URL
+function getApiUrl(endpoint) {
+    // Get current directory path
+    let path = window.location.pathname;
+    
+    // Remove filename if present (index.html)
+    if (path.endsWith('.html') || path.endsWith('.php')) {
+        path = path.substring(0, path.lastIndexOf('/'));
+    }
+    
+    // Ensure trailing slash
+    if (!path.endsWith('/')) {
+        path += '/';
+    }
+    
+    const fullUrl = window.location.origin + path + 'api/' + endpoint;
+    console.log('[API] Generated URL:', fullUrl);
+    return fullUrl;
+}
+
+// Show error message instead of alert
+function showError(message) {
+    const errorDiv = document.getElementById('errorMessage');
+    const errorText = document.getElementById('errorText');
+    if (errorDiv && errorText) {
+        errorText.textContent = message;
+        errorDiv.classList.remove('hidden');
+        // Auto-hide after 5 seconds
+        setTimeout(() => errorDiv.classList.add('hidden'), 5000);
+    }
+    console.error('[ERROR]', message);
+}
+
+function hideError() {
+    const errorDiv = document.getElementById('errorMessage');
+    if (errorDiv) errorDiv.classList.add('hidden');
+}
 
 document.addEventListener('DOMContentLoaded', function() {
     const startButton = document.getElementById('startCrawl');
@@ -19,6 +85,26 @@ document.addEventListener('DOMContentLoaded', function() {
     if (downloadButton) downloadButton.addEventListener('click', handleDownloadSelected);
     if (searchInput) searchInput.addEventListener('input', searchFiles);
     if (toggleBtn) toggleBtn.addEventListener('click', toggleSelection);
+
+    if (DEBUG_MODE) {
+        document.getElementById('debugSection')?.classList.remove('hidden');
+        setDebugHint('Debug mode is ON (add ?debug=1)');
+        appendDebug('page', { href: window.location.href, apiBase: getApiUrl('') });
+
+        const copyBtn = document.getElementById('copyDebugBtn');
+        if (copyBtn) {
+            copyBtn.addEventListener('click', async () => {
+                const out = document.getElementById('debugOutput');
+                const text = out ? out.textContent : '';
+                try {
+                    await navigator.clipboard.writeText(text);
+                    setDebugHint('Copied debug to clipboard');
+                } catch (e) {
+                    setDebugHint('Copy failed: ' + e.message);
+                }
+            });
+        }
+    }
     
     
     document.querySelectorAll('.category-checkbox').forEach(checkbox => {
@@ -36,15 +122,27 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const modal = document.getElementById('fileModal');
     const closeBtn = document.querySelector('.modal-close');
+    
+    // Function to pause all media in modal
+    function pauseAllMedia() {
+        if (!modal) return;
+        const videos = modal.querySelectorAll('video');
+        const audios = modal.querySelectorAll('audio');
+        videos.forEach(v => { v.pause(); v.currentTime = 0; });
+        audios.forEach(a => { a.pause(); a.currentTime = 0; });
+    }
+    
     if (modal) {
         if (closeBtn) {
             closeBtn.addEventListener('click', () => {
+                pauseAllMedia();
                 modal.classList.add('hidden');
                 document.body.style.overflow = '';
             });
         }
         modal.addEventListener('click', (e) => {
             if (e.target === modal) {
+                pauseAllMedia();
                 modal.classList.add('hidden');
                 document.body.style.overflow = '';
             }
@@ -53,6 +151,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && modal && !modal.classList.contains('hidden')) {
+            pauseAllMedia();
             modal.classList.add('hidden');
             document.body.style.overflow = '';
         }
@@ -89,7 +188,7 @@ async function fetchFileSizes(files) {
         const batch = urlsToFetch.slice(i, i + batchSize);
         
         try {
-            const response = await fetch('api/get_file_sizes.php', {
+            const response = await fetch(getApiUrl('get_file_sizes.php'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ urls: batch })
@@ -139,7 +238,6 @@ function startCrawling() {
     const extensionCheckboxes = document.querySelectorAll('input[name="extensions"]:checked');
     let extensions = Array.from(extensionCheckboxes).map(cb => cb.value);
     
-    
     const customExtInput = document.getElementById('customExtensions');
     if (customExtInput && customExtInput.value.trim()) {
         const customExts = customExtInput.value.split(',').map(ext => {
@@ -153,15 +251,32 @@ function startCrawling() {
     const btn = document.getElementById('startCrawl');
     const btnText = document.getElementById('btnText');
     
-    if (!urlTextarea) { alert('Please enter a URL'); return; }
-    if (extensions.length === 0) { alert('Select at least one file type or enter custom extensions'); return; }
+    if (!urlTextarea) { showError('Please enter a URL'); return; }
+    if (extensions.length === 0) { showError('Select at least one file type or enter custom extensions'); return; }
     
-    console.log('[CRAWLER] Starting crawl with:', { url: urlTextarea.split('\n')[0], maxDepth, maxPages, extensions });
+    // Auto-detect if headless mode needed (JavaScript-heavy sites)
+    const jsHeavySites = ['zing.vn', 'zingmp3.vn', 'mp3.zing.vn', 'nhaccuatui.com', 'tiktok.com', 'shopee.vn', 'tiki.vn', 'lazada.vn', 'sendo.vn'];
+    const useHeadless = jsHeavySites.some(site => urlTextarea.toLowerCase().includes(site));
+    const useQueue = maxPages > 200; // Auto-enable queue for large crawls
+
+    // Zing pages can include many embedded links/ads; keep results focused on captured media
+    const isZing = ['zing.vn', 'zingmp3.vn', 'mp3.zing.vn'].some(site => urlTextarea.toLowerCase().includes(site));
+    const strictMediaOrigin = useHeadless && isZing;
+    
+    console.log('[CRAWLER] Starting crawl with:', { 
+        url: urlTextarea.split('\n')[0], 
+        maxDepth, 
+        maxPages, 
+        extensions, 
+        useHeadless: useHeadless ? 'auto-detected' : 'no', 
+        useQueue: useQueue ? 'auto-enabled' : 'no'
+    });
 
     
+    hideError();
     isCrawling = true;
     btn.disabled = true;
-    btnText.textContent = "Initializing..."; 
+    btnText.textContent = useHeadless ? "Initializing Headless Browser..." : "Initializing..."; 
     btn.classList.add('crawling-active');
     document.getElementById('resultsSection').classList.add('hidden');
 
@@ -172,17 +287,26 @@ function startCrawling() {
     const useProxy = proxyList.length > 0 ? true : false;
     
     
-    if(progressInterval) clearInterval(progressInterval);
-    progressInterval = setInterval(checkProgress, 2000);
+    // Progress polling disabled (progress bar removed)
     
     console.log('[CRAWLER] Request sent to server...');
 
-    fetch('api/crawl.php', {
+    console.log('[CRAWLER] API URL:', getApiUrl('crawl.php'));
+
+    const crawlEndpoint = DEBUG_MODE ? 'crawl.php?debug=1' : 'crawl.php';
+    fetch(getApiUrl(crawlEndpoint), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            url: url, maxDepth: maxDepth, maxPages: maxPages,
-            extensions: extensions, use_proxy: useProxy, proxy_list: proxyList
+            url: url, 
+            maxDepth: maxDepth, 
+            maxPages: maxPages,
+            extensions: extensions, 
+            use_proxy: useProxy, 
+            proxy_list: proxyList,
+            use_headless: useHeadless,
+            use_queue: useQueue,
+            strict_media_origin: strictMediaOrigin
         })
     })
     .then(async response => {
@@ -197,16 +321,32 @@ function startCrawling() {
         }
     })
     .then(data => {
-        clearInterval(progressInterval);
+        if (progressInterval) clearInterval(progressInterval);
         isCrawling = false;
         
         console.log('[CRAWLER] Response received:', data);
+
+        if (DEBUG_MODE) {
+            // Avoid dumping giant file arrays into the panel
+            const safe = {
+                success: data?.success,
+                error: data?.error,
+                sid: data?.sid,
+                files_count: Array.isArray(data?.files) ? data.files.length : null,
+                stats: data?.stats,
+                debug: data?.debug
+            };
+            appendDebug('crawl response (summary)', safe);
+            if (data?.debug_log_tail) {
+                appendDebug('crawl_debug.log (tail)', data.debug_log_tail);
+            }
+        }
         
         if (data.error) {
             btnText.textContent = "Failed!";
             btn.style.background = "#ef4444";
             console.error('[CRAWLER] Error:', data.error);
-            alert("Crawler Error: " + data.error);
+            showError(data.error);
             setTimeout(() => resetBtn(), 3000);
         } else {
             foundFiles = data.files || [];
@@ -215,6 +355,10 @@ function startCrawling() {
             currentSearchTerm = '';
             currentPage = 1;
             console.log('[CRAWLER] Found', foundFiles.length, 'files');
+
+            if (DEBUG_MODE && data?.sid) {
+                setDebugHint('sid: ' + data.sid);
+            }
             
             if (data.stats && data.stats.errors && data.stats.errors.length > 0) {
                 console.error('[CRAWLER] Errors during crawl:', data.stats.errors);
@@ -238,13 +382,13 @@ function startCrawling() {
                 btnText.textContent = "Finished (0 files)";
                 btn.style.background = "#f59e0b";
                 displayResults([], null);
-                alert("Crawl finished but found 0 files. Try increasing Depth or checking file types.");
+                showError("Crawl finished but found 0 files. Try increasing Depth or checking file types.");
             }
             setTimeout(() => resetBtn(), 4000);
         }
     })
     .catch(error => {
-        clearInterval(progressInterval);
+        if (progressInterval) clearInterval(progressInterval);
         isCrawling = false;
         
         const btn = document.getElementById('startCrawl');
@@ -256,7 +400,7 @@ function startCrawling() {
         }
         
         console.error('[CRAWLER] Fetch error:', error);
-        alert("System Error: " + error.message);
+        showError("System Error: " + error.message);
         setTimeout(() => resetBtn(), 3000);
     });
 }
@@ -281,15 +425,25 @@ function checkProgress() {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 3000);
     
-    fetch('api/crawl.php?progress=1', { signal: controller.signal })
+    const progressEndpoint = DEBUG_MODE ? 'crawl.php?progress=1&debug=1' : 'crawl.php?progress=1';
+    fetch(getApiUrl(progressEndpoint), { signal: controller.signal })
         .then(r => r.json())
         .then(data => {
             clearTimeout(timeoutId);
-            if (isCrawling && data.total > 0) {
-                const btnText = document.getElementById('btnText');
-                if (btnText) {
-                    const elapsed = data.time_elapsed ? ` (${data.time_elapsed}s)` : '';
-                    btnText.textContent = `Crawling...${elapsed}`;
+            if (isCrawling) {
+                updateProgressUI(data);
+                if (DEBUG_MODE) {
+                    appendDebug('progress', {
+                        current: data?.current,
+                        total: data?.total,
+                        status: data?.status,
+                        time_elapsed: data?.time_elapsed,
+                        sid: data?.sid,
+                        debug: data?.debug
+                    });
+                    if (data?.debug_log_tail) {
+                        appendDebug('crawl_debug.log (tail)', data.debug_log_tail);
+                    }
                 }
             }
         })
@@ -407,16 +561,19 @@ function displayResults(files, stats, isFiltered = false) {
     paginatedFiles.forEach((file, index) => {
         const globalIndex = startIndex + index;
         const isChecked = allCheckedFiles.has(file.url) ? ' checked' : '';
+        const isStreaming = isStreamingUrl(file.url);
+        const streamBadge = isStreaming ? '<span style="background:#f59e0b; color:white; padding:2px 6px; border-radius:4px; font-size:0.75rem; margin-left:6px; font-weight:600;">STREAM</span>' : '';
+        
         html += `
-            <div class="file-item">
+            <div class="file-item" ${isStreaming ? 'style="border-left:3px solid #f59e0b;"' : ''}>
                 <input type="checkbox" class="file-checkbox" value="${escapeHtml(file.url)}" data-index="${globalIndex}"${isChecked} onchange="handleCheckboxChange(this)">
                 <div class="file-info">
-                    <div class="file-name" title="${escapeHtml(file.filename)}">${escapeHtml(file.filename)}</div>
-                    <div class="file-meta">${file.extension.toUpperCase()} | ${file.size || 'Unknown'}</div>
+                    <div class="file-name" title="${escapeHtml(file.filename)}">${escapeHtml(file.filename)}${streamBadge}</div>
+                    <div class="file-meta">${file.extension.toUpperCase()} | ${file.size || 'Unknown'}${isStreaming ? ' | FFmpeg required' : ''}</div>
                 </div>
                 <div class="file-actions">
                      <button onclick="viewFile('${escapeHtml(file.url)}', '${escapeHtml(file.filename)}', '${file.extension}')" class="btn-secondary btn-sm">View</button>
-                     <button onclick="downloadSingleFile('${escapeHtml(file.url)}', '${escapeHtml(file.filename)}')" class="btn-secondary btn-sm">Download</button>
+                     <button onclick="downloadSingleFile('${escapeHtml(file.url)}', '${escapeHtml(file.filename)}')" class="btn-secondary btn-sm">${isStreaming ? 'Convert' : 'Download'}</button>
                 </div>
             </div>
         `;
@@ -466,17 +623,56 @@ function displayResults(files, stats, isFiltered = false) {
     }
 }
 
+function closePreview() {
+    const modal = document.getElementById('fileModal');
+    if (modal) {
+        const videos = modal.querySelectorAll('video');
+        const audios = modal.querySelectorAll('audio');
+        videos.forEach(v => { v.pause(); v.currentTime = 0; });
+        audios.forEach(a => { a.pause(); a.currentTime = 0; });
+        modal.classList.add('hidden');
+        document.body.style.overflow = '';
+    }
+}
+
+// Check if URL is a streaming URL
+function isStreamingUrl(url) {
+    // Be conservative: only treat URLs as streams when they clearly point to HLS/DASH manifests.
+    // Avoid false-positives (e.g. TikTok direct MP4 URLs that contain "stream" in the path/query).
+    if (!url) return false;
+
+    const u = String(url);
+    return (/\.m3u8(\?|$)/i).test(u) ||
+           (/\.mpd(\?|$)/i).test(u) ||
+           (/[?&](format|type)=m3u8/i).test(u) ||
+           (/[?&](format|type)=mpd/i).test(u);
+}
+
 function downloadSingleFile(url, filename) {
+    // Check if this is a streaming URL
+    if (isStreamingUrl(url)) {
+        downloadStreamingFile(url, filename);
+        return;
+    }
+    
+    // Regular file download
     const link = document.createElement('a');
     link.download = filename || 'download';
     link.style.display = 'none';
     
-    fetch('api/download_single.php', {
+    fetch(getApiUrl('download_single.php'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: url, filename: filename })
     })
     .then(response => {
+        const ct = (response.headers.get('content-type') || '').toLowerCase();
+        if (ct.includes('application/json')) {
+            return response.json().then(j => {
+                const msg = (j && (j.message || j.error)) ? (j.message || j.error) : 'Download failed';
+                throw new Error(msg);
+            });
+        }
         if (!response.ok) throw new Error('Download failed');
         return response.blob();
     })
@@ -490,8 +686,54 @@ function downloadSingleFile(url, filename) {
     })
     .catch(error => {
         console.error('[DOWNLOAD] Failed:', error);
-        alert('Download failed: ' + error.message);
+        showError('Download failed: ' + error.message);
     });
+}
+
+// Download streaming file (.m3u8, .mpd) using FFmpeg
+function downloadStreamingFile(url, filename) {
+    // Show loading notification
+    showNotification('Converting stream with FFmpeg...', 'info');
+    
+    // Determine format from filename or default to mp4
+    const ext = filename.split('.').pop().toLowerCase();
+    const format = (ext === 'mp3' || ext === 'ogg' || ext === 'oga') ? 'mp3' : 'mp4';
+    
+    // Preflight: confirm this is a supported streaming URL and FFmpeg is available.
+    const infoUrl = getApiUrl('download_stream.php') +
+                    '?info=1&url=' + encodeURIComponent(url) +
+                    '&format=' + encodeURIComponent(format);
+
+    fetch(infoUrl)
+        .then(async (resp) => {
+            const data = await resp.json().catch(() => null);
+            if (!resp.ok || !data || data.success !== true) {
+                const msg = (data && (data.message || data.error)) ? (data.message || data.error) : 'Stream convert failed';
+                throw new Error(msg);
+            }
+            return data;
+        })
+        .then(() => {
+            // Build download URL
+            const downloadUrl = getApiUrl('download_stream.php') +
+                                '?url=' + encodeURIComponent(url) +
+                                '&format=' + format;
+
+            // Create hidden link and trigger download
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = filename.replace(/\.[^.]+$/, '.' + format);
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            showNotification('Stream download started! This may take a few minutes...', 'info');
+        })
+        .catch((err) => {
+            console.error('[STREAM] Convert failed:', err);
+            showError('Convert failed: ' + (err && err.message ? err.message : 'Unknown error'));
+        });
 }
 
 function viewFile(url, filename, ext) {
@@ -501,7 +743,7 @@ function viewFile(url, filename, ext) {
     
     if (!modal || !content || !modalFileName) {
         console.error('[VIEWER] Modal elements not found');
-        alert('Preview unavailable. Opening in new tab...');
+        console.log('Preview unavailable. Opening in new tab...');
         window.open(url, '_blank');
         return;
     }
@@ -510,35 +752,38 @@ function viewFile(url, filename, ext) {
     ext = ext.toLowerCase();
     
     
-    if (['.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp', '.bmp', '.ico'].includes(ext)) {
+    if (['.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp', '.bmp', '.ico', '.tiff', '.jfif', '.avif'].includes(ext)) {
         content.innerHTML = `
             <img src="${escapeHtml(url)}" alt="${escapeHtml(filename)}"
                  onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'preview-error\'><p>Failed to load image</p></div>';">
             <div class="preview-actions">
-                <a href="${escapeHtml(url)}" target="_blank" title="Open in new tab">↗</a>
-                <button onclick="downloadSingleFile('${escapeHtml(url)}', '${escapeHtml(filename)}')" title="Download">⬇</button>
+                <a href="${escapeHtml(url)}" target="_blank" title="Open in new tab">🌐</a>
+                <button onclick="downloadSingleFile('${escapeHtml(url)}', '${escapeHtml(filename)}')" title="Download">📥</button>
+                <button onclick="closePreview()" title="Close">❌</button>
             </div>
         `;
     } else if (['.pdf'].includes(ext)) {
         content.innerHTML = `
             <iframe src="${escapeHtml(url)}" title="${escapeHtml(filename)}"></iframe>
             <div class="preview-actions">
-                <a href="${escapeHtml(url)}" target="_blank" title="Open in new tab">↗</a>
-                <button onclick="downloadSingleFile('${escapeHtml(url)}', '${escapeHtml(filename)}')" title="Download">⬇</button>
+                <a href="${escapeHtml(url)}" target="_blank" title="Open in new tab">🌐</a>
+                <button onclick="downloadSingleFile('${escapeHtml(url)}', '${escapeHtml(filename)}')" title="Download">📥</button>
+                <button onclick="closePreview()" title="Close">❌</button>
             </div>
         `;
-    } else if (['.mp4', '.webm', '.ogg'].includes(ext)) {
+    } else if (['.mp4', '.webm', '.mov', '.avi', '.mkv', '.wmv', '.flv', '.m4v', '.ogv', '.3gp'].includes(ext)) {
         content.innerHTML = `
             <video controls autoplay style="max-width:100%; max-height:100%;">
                 <source src="${escapeHtml(url)}" type="video/${ext.substring(1)}">
                 Your browser does not support video playback.
             </video>
             <div class="preview-actions">
-                <a href="${escapeHtml(url)}" target="_blank" title="Open in new tab">↗</a>
-                <button onclick="downloadSingleFile('${escapeHtml(url)}', '${escapeHtml(filename)}')" title="Download">⬇</button>
+                <a href="${escapeHtml(url)}" target="_blank" title="Open in new tab">🌐</a>
+                <button onclick="downloadSingleFile('${escapeHtml(url)}', '${escapeHtml(filename)}')" title="Download">📥</button>
+                <button onclick="closePreview()" title="Close">❌</button>
             </div>
         `;
-    } else if (['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac'].includes(ext)) {
+    } else if (['.mp3', '.wav', '.m4a', '.aac', '.flac', '.wma', '.mid', '.opus', '.ape', '.alac', '.oga'].includes(ext)) {
         content.innerHTML = `
             <div style="width:100%; padding:40px 20px; text-align:center;">
                 <audio controls autoplay style="width:100%; max-width:500px;">
@@ -546,9 +791,26 @@ function viewFile(url, filename, ext) {
                     Your browser does not support audio playback.
                 </audio>
                 <div class="preview-actions">
-                    <a href="${escapeHtml(url)}" target="_blank" title="Open in new tab">↗</a>
-                    <button onclick="downloadSingleFile('${escapeHtml(url)}', '${escapeHtml(filename)}')" title="Download"></button>
+                    <a href="${escapeHtml(url)}" target="_blank" title="Open in new tab">🌐</a>
+                    <button onclick="downloadSingleFile('${escapeHtml(url)}', '${escapeHtml(filename)}')" title="Download">📥</button>
+                    <button onclick="closePreview()" title="Close">❌</button>
                 </div>
+            </div>
+        `;
+    } else if (ext === '.ogg') {
+        // OGG can be both video or audio - try video first with fallback to audio
+        content.innerHTML = `
+            <video controls autoplay style="max-width:100%; max-height:100%;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                <source src="${escapeHtml(url)}" type="video/ogg">
+            </video>
+            <audio controls autoplay style="width:100%; max-width:500px; display:none;">
+                <source src="${escapeHtml(url)}" type="audio/ogg">
+                Your browser does not support OGG playback.
+            </audio>
+            <div class="preview-actions">
+                <a href="${escapeHtml(url)}" target="_blank" title="Open in new tab">🌐</a>
+                <button onclick="downloadSingleFile('${escapeHtml(url)}', '${escapeHtml(filename)}')" title="Download">📥</button>
+                <button onclick="closePreview()" title="Close">❌</button>
             </div>
         `;
     } else if (['.txt', '.json', '.xml', '.csv', '.log'].includes(ext)) {
@@ -561,8 +823,9 @@ function viewFile(url, filename, ext) {
                     <div style="width:100%; height:100%; display:flex; flex-direction:column;">
                         <pre style="flex:1;">${escapeHtml(text.substring(0, 10000))}</pre>
                         <div class="preview-actions">
-                            <a href="${escapeHtml(url)}" target="_blank" title="Open in new tab">↗</a>
-                            <button onclick="downloadSingleFile('${escapeHtml(url)}', '${escapeHtml(filename)}')" title="Download">⬇</button>
+                            <a href="${escapeHtml(url)}" target="_blank" title="Open in new tab">🌐</a>
+                            <button onclick="downloadSingleFile('${escapeHtml(url)}', '${escapeHtml(filename)}')" title="Download">📥</button>
+                            <button onclick="closePreview()" title="Close">❌</button>
                         </div>
                     </div>
                 `;
@@ -575,8 +838,9 @@ function viewFile(url, filename, ext) {
             <div style="width:100%; height:100%; display:flex; flex-direction:column;">
                 <iframe src="${escapeHtml(url)}" style="flex:1; width:100%; height:100%; border:none; background:white;"></iframe>
                 <div class="preview-actions">
-                    <a href="${escapeHtml(url)}" target="_blank" title="Open in new tab">↗</a>
-                    <button onclick="downloadSingleFile('${escapeHtml(url)}', '${escapeHtml(filename)}')" title="Download">⬇</button>
+                    <a href="${escapeHtml(url)}" target="_blank" title="Open in new tab">🌐</a>
+                    <button onclick="downloadSingleFile('${escapeHtml(url)}', '${escapeHtml(filename)}')" title="Download">📥</button>
+                    <button onclick="closePreview()" title="Close">❌</button>
                 </div>
             </div>
         `;
@@ -589,8 +853,9 @@ function viewFile(url, filename, ext) {
                     <div style="width:100%; height:100%; display:flex; flex-direction:column;">
                         <pre style="flex:1; margin:0;">${escapeHtml(text.substring(0, 15000))}</pre>
                         <div class="preview-actions">
-                            <a href="${escapeHtml(url)}" target="_blank" title="Open in new tab">↗</a>
-                            <button onclick="downloadSingleFile('${escapeHtml(url)}', '${escapeHtml(filename)}')" title="Download">⬇</button>
+                            <a href="${escapeHtml(url)}" target="_blank" title="Open in new tab">🌐</a>
+                            <button onclick="downloadSingleFile('${escapeHtml(url)}', '${escapeHtml(filename)}')" title="Download">📥</button>
+                            <button onclick="closePreview()" title="Close">❌</button>
                         </div>
                     </div>
                 `;
@@ -601,19 +866,21 @@ function viewFile(url, filename, ext) {
                         <p style="font-size:48px; margin-bottom:15px;">✖</p>
                         <p>Unable to load preview</p>
                         <div class="preview-actions">
-                            <a href="${escapeHtml(url)}" target="_blank" title="Open in new tab">↗</a>
-                            <button onclick="downloadSingleFile('${escapeHtml(url)}', '${escapeHtml(filename)}')" title="Download">⬇</button>
+                            <a href="${escapeHtml(url)}" target="_blank" title="Open in new tab">🌐</a>
+                            <button onclick="downloadSingleFile('${escapeHtml(url)}', '${escapeHtml(filename)}')" title="Download">📥</button>
+                            <button onclick="closePreview()" title="Close">❌</button>
                         </div>
                     </div>
                 `;
             });
-    } else if (['.zip', '.rar', '.7z', '.tar', '.gz', '.iso'].includes(ext)) {
+    } else if (['.zip', '.rar', '.7z', '.tar', '.gz', '.iso', '.xz', '.bz2'].includes(ext)) {
         content.innerHTML = `
             <div class="preview-error">
-                <p style="font-size:72px; margin-bottom:15px;">�</p>
+                <p style="font-size:72px; margin-bottom:15px;">📦</p>
                 <p>Archive File</p>
                 <div class="preview-actions">
-                    <button onclick="downloadSingleFile('${escapeHtml(url)}', '${escapeHtml(filename)}')" title="Download">⭳</button>
+                    <button onclick="downloadSingleFile('${escapeHtml(url)}', '${escapeHtml(filename)}')" title="Download">📥</button>
+                    <button onclick="closePreview()" title="Close">❌</button>
                 </div>
             </div>
         `;
@@ -623,8 +890,9 @@ function viewFile(url, filename, ext) {
                 <p style="font-size:72px; margin-bottom:15px;">📄</p>
                 <p>Preview not available</p>
                 <div class="preview-actions">
-                    <a href="${escapeHtml(url)}" target="_blank" title="Open in new tab">↗</a>
-                    <button onclick="downloadSingleFile('${escapeHtml(url)}', '${escapeHtml(filename)}')" title="Download">⬇</button>
+                    <a href="${escapeHtml(url)}" target="_blank" title="Open in new tab">🌐</a>
+                    <button onclick="downloadSingleFile('${escapeHtml(url)}', '${escapeHtml(filename)}')" title="Download">📥</button>
+                    <button onclick="closePreview()" title="Close">❌</button>
                 </div>
             </div>
         `;
@@ -836,7 +1104,7 @@ function updateItemsPerPage() {
 function handleDownloadSelected() {
     const checkedBoxes = document.querySelectorAll('.file-checkbox:checked');
     if (checkedBoxes.length === 0) {
-        alert('Please select at least one file to download');
+        showError('Please select at least one file to download');
         return;
     }
     
@@ -848,7 +1116,7 @@ function downloadFiles(urls) {
     const allButtons = document.querySelectorAll('button');
     allButtons.forEach(btn => btn.disabled = true);
 
-    fetch('api/download_zip.php', {
+    fetch(getApiUrl('download_zip.php'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ files: urls })
@@ -879,7 +1147,7 @@ function downloadFiles(urls) {
     })
     .catch(err => {
         console.error('[DOWNLOAD] Error:', err);
-        alert('Download failed: ' + err.message + '\n\nPlease make sure ZIP extension is enabled in PHP.');
+        showError('Download failed: ' + err.message + '. Please make sure ZIP extension is enabled in PHP.');
     })
     .finally(() => {
         allButtons.forEach(btn => btn.disabled = false);

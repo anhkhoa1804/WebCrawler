@@ -3,6 +3,28 @@ set_time_limit(600);
 ini_set('display_errors', 0);
 error_reporting(E_ALL);
 
+function isLocalRequest() {
+    $addr = $_SERVER['REMOTE_ADDR'] ?? '';
+    return ($addr === '127.0.0.1' || $addr === '::1' || $addr === '');
+}
+
+// Debug mode is only enabled for localhost requests
+$debugMode = (isset($_GET['debug']) && $_GET['debug'] == '1' && isLocalRequest());
+
+if ($debugMode) {
+    ini_set('display_errors', 1);
+}
+
+// Log file for debugging
+$logFile = __DIR__ . '/../data/crawl_debug.log';
+function debugLog($message) {
+    global $logFile;
+    $timestamp = date('Y-m-d H:i:s');
+    file_put_contents($logFile, "[$timestamp] $message\n", FILE_APPEND);
+}
+
+debugLog("=== CRAWL REQUEST RECEIVED ===");
+
 register_shutdown_function(function() {
     $error = error_get_last();
     if ($error && ($error['type'] === E_ERROR || $error['type'] === E_PARSE)) {
@@ -16,10 +38,69 @@ register_shutdown_function(function() {
 ob_start();
 header('Content-Type: application/json');
 
+function tailTextFile($path, $maxBytes = 24576) {
+    if (!$path || !is_string($path) || !file_exists($path)) return null;
+    $size = filesize($path);
+    if ($size === false || $size <= 0) return '';
+
+    $readBytes = min((int)$maxBytes, (int)$size);
+    $fp = @fopen($path, 'rb');
+    if (!$fp) return null;
+    @fseek($fp, -$readBytes, SEEK_END);
+    $data = @fread($fp, $readBytes);
+    @fclose($fp);
+    if ($data === false) return null;
+    return str_replace("\r\n", "\n", $data);
+}
+
+// FIX #7: Read-only session access for progress checks
 if (isset($_GET['progress'])) {
-    session_start();
-    $progress = isset($_SESSION['crawl_progress']) ? $_SESSION['crawl_progress'] : ['current' => 0, 'total' => 0, 'status' => 'idle'];
-    session_write_close();
+    // IMPORTANT: load the session id from the PHPSESSID cookie.
+    // Without session_start(), session_id() may be empty under Apache.
+    if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
+        // Read-only session open to avoid locking the crawler request.
+        @session_start(['read_and_close' => true]);
+    }
+
+    $sid = session_id();
+
+    // Optional sid override for debugging (avoids cookie/session issues)
+    if ($debugMode && !$sid && !empty($_GET['sid']) && preg_match('/^[A-Za-z0-9,-]{8,128}$/', (string)$_GET['sid'])) {
+        $sid = (string)$_GET['sid'];
+    }
+    if (!$sid && !empty($_COOKIE['PHPSESSID'])) {
+        $sid = (string)$_COOKIE['PHPSESSID'];
+    }
+
+    // Use file-based progress instead of session to avoid locking
+    $progressFile = sys_get_temp_dir() . '/crawler_progress_' . $sid . '.json';
+    
+    if ($sid && file_exists($progressFile)) {
+        $progress = json_decode(file_get_contents($progressFile), true);
+        if (!is_array($progress)) {
+            $progress = ['current' => 0, 'total' => 0, 'status' => 'idle'];
+        }
+    } else {
+        $progress = ['current' => 0, 'total' => 0, 'status' => 'idle'];
+    }
+
+    // Help debugging mismatched sessions
+    $progress['sid'] = $sid ?: null;
+
+    if ($debugMode) {
+        $progress['debug'] = [
+            'remote_addr' => $_SERVER['REMOTE_ADDR'] ?? null,
+            'temp_dir' => sys_get_temp_dir(),
+            'progress_file' => $progressFile,
+            'progress_file_exists' => (bool)($sid && file_exists($progressFile)),
+            'progress_file_mtime' => ($sid && file_exists($progressFile)) ? @filemtime($progressFile) : null,
+        ];
+        $tail = tailTextFile($logFile, 16384);
+        if ($tail !== null) {
+            $progress['debug_log_tail'] = $tail;
+        }
+    }
+    
     ob_clean();
     echo json_encode($progress);
     exit;
@@ -54,6 +135,10 @@ try {
     $maxDepth = (int)($input['maxDepth'] ?? 2);
     $maxPages = (int)($input['maxPages'] ?? 50);
     
+    debugLog("URL: $url");
+    debugLog("Extensions: " . json_encode($extensions));
+    debugLog("Depth: $maxDepth, Pages: $maxPages");
+    
     // Enable database and parallel processing by default
     $options = [
         'use_database' => true,
@@ -61,6 +146,61 @@ try {
         'parallel_connections' => 5,
         'timeout' => 15
     ];
+    
+    // Auto-detect if headless browser needed for JavaScript-heavy sites
+    $jsHeavySites = ['zing.vn', 'zingmp3.vn', 'mp3.zing.vn', 'nhaccuatui.com', 'tiktok.com', 'shopee.vn', 'tiki.vn', 'lazada.vn', 'sendo.vn', 'facebook.com', 'instagram.com'];
+    $needsHeadless = false;
+    foreach ($jsHeavySites as $site) {
+        if (stripos($url, $site) !== false) {
+            $needsHeadless = true;
+            break;
+        }
+    }
+    
+    // Enable headless browser if auto-detected or manually requested
+    if ($needsHeadless || (isset($input['use_headless']) && $input['use_headless'])) {
+        $options['use_headless'] = true;
+        // Let HeadlessBrowser class auto-detect (Panther -> Puppeteer -> cURL)
+        // Don't force a specific mode
+        error_log("[CRAWL] Headless browser enabled for: $url");
+    }
+
+    // Strict Zing media mode: only return Puppeteer-captured media (reduces unrelated captures)
+    $host = strtolower((string)(parse_url($url, PHP_URL_HOST) ?? ''));
+    $isZing = (str_contains($host, 'zingmp3.vn') || str_contains($host, 'zing.vn') || str_contains($host, 'mp3.zing.vn'));
+    $isNct = str_contains($host, 'nhaccuatui.com');
+    $hasAudioExt = false;
+    foreach ((array)$extensions as $ext) {
+        $e = strtolower((string)$ext);
+        if (in_array($e, ['.mp3', '.m4a', '.aac', '.flac', '.wav', '.ogg', '.opus', '.wma', '.mid', '.oga', '.ape', '.alac'], true)) {
+            $hasAudioExt = true;
+            break;
+        }
+    }
+    $strictRequested = !empty($input['strict_media_origin']);
+    if (($strictRequested || ($isZing && $hasAudioExt)) && !empty($options['use_headless'])) {
+        $options['strict_media_origin'] = true;
+        // Puppeteer may traverse multiple song pages inside a single fetch; increase timeout.
+        $options['timeout'] = 60;
+        // Use UI maxPages as a "max songs" hint (cap to keep runtime bounded)
+        $options['zing_max_songs'] = max(1, min((int)$maxPages, 30));
+    }
+
+    // Nhaccuatui playlist/pages often require playback + API parsing; increase timeout and pass song cap.
+    if ($isNct && $hasAudioExt && !empty($options['use_headless'])) {
+        $options['timeout'] = max((int)($options['timeout'] ?? 15), 60);
+        $options['nct_max_songs'] = max(1, min((int)$maxPages, 30));
+    }
+    
+    // Enable queue system for large crawls or if manually requested
+    if ($maxPages > 200 || (isset($input['use_queue']) && $input['use_queue'])) {
+        $options['use_queue'] = true;
+    }
+    
+    // Handle login/authentication if provided
+    if (isset($input['login']) && is_array($input['login'])) {
+        $options['login'] = $input['login'];
+    }
     
     if ($maxPages > 100) $maxPages = 100;
     
@@ -79,15 +219,23 @@ try {
         }
     }
 
-    session_start();
-    $_SESSION['crawl_progress'] = [
-        'current' => 0,
-        'total' => $maxPages,
-        'status' => 'crawling'
-    ];
-    session_write_close();
+    $sidForResponse = null;
+    if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
+        session_start();
+    }
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        $sidForResponse = session_id();
+        $_SESSION['crawl_progress'] = [
+            'current' => 0,
+            'total' => $maxPages,
+            'status' => 'crawling'
+        ];
+        session_write_close();
+    }
 
     $crawler = new WebCrawler($url, $extensions, $maxDepth, $maxPages, $options);
+    
+    debugLog("Crawler initialized, starting crawl...");
     
     if (ob_get_level() > 0) {
         @ob_flush();
@@ -96,22 +244,38 @@ try {
     
     $crawler->crawl();
     
-    session_start();
-    $_SESSION['crawl_progress'] = [
-        'current' => $maxPages,
-        'total' => $maxPages,
-        'status' => 'completed'
-    ];
-    session_write_close();
+    debugLog("Crawl completed");
+    
+    // Avoid session_start() here: output may have been flushed; progress is primarily file-based.
     
     $stats = $crawler->getStats();
     $stats['errors'] = $crawler->getErrors();
     
+    $files = $crawler->getFoundFiles();
+    debugLog("Files found: " . count($files));
+    
     $response = [
         'success' => true,
-        'files' => $crawler->getFoundFiles(),
+        'sid' => $sidForResponse,
+        'files' => $files,
         'stats' => $stats
     ];
+
+    if ($debugMode) {
+        $response['debug'] = [
+            'remote_addr' => $_SERVER['REMOTE_ADDR'] ?? null,
+            'php_sapi' => php_sapi_name(),
+            'temp_dir' => sys_get_temp_dir(),
+            'progress_file' => $sidForResponse ? (sys_get_temp_dir() . '/crawler_progress_' . $sidForResponse . '.json') : null,
+            'progress_file_exists' => $sidForResponse ? file_exists(sys_get_temp_dir() . '/crawler_progress_' . $sidForResponse . '.json') : false,
+        ];
+        $tail = tailTextFile($logFile, 24576);
+        if ($tail !== null) {
+            $response['debug_log_tail'] = $tail;
+        }
+    }
+    
+    debugLog("Response: " . json_encode(['files_count' => count($files), 'stats' => $stats]));
     
     ob_clean();
     echo json_encode($response);

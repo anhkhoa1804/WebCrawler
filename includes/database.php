@@ -7,6 +7,8 @@
 class CrawlerDatabase {
     private $db;
     private $dbPath;
+    private $maxRetries = 5;
+    private $retryDelay = 100; // milliseconds
     
     public function __construct($dbPath = null) {
         $this->dbPath = $dbPath ?? __DIR__ . '/../data/crawler.db';
@@ -20,12 +22,53 @@ class CrawlerDatabase {
         try {
             $this->db = new PDO('sqlite:' . $this->dbPath);
             $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            
+            // Enable WAL mode for better concurrency
+            $this->db->exec('PRAGMA journal_mode=WAL');
+            $this->db->exec('PRAGMA busy_timeout=5000'); // 5 seconds
+            
             $this->initTables();
-            error_log("[DATABASE] SQLite initialized: {$this->dbPath}");
+            error_log("[DATABASE] SQLite initialized with WAL mode: {$this->dbPath}");
         } catch (PDOException $e) {
             error_log("[DATABASE] Failed to initialize: " . $e->getMessage());
             throw $e;
         }
+    }
+    
+    /**
+     * Execute with automatic retry on database locked
+     */
+    private function executeWithRetry($callback) {
+        $attempt = 0;
+        
+        while ($attempt < $this->maxRetries) {
+            try {
+                return $callback();
+            } catch (PDOException $e) {
+                // Check if error is "database is locked"
+                if (strpos($e->getMessage(), 'database is locked') !== false || 
+                    strpos($e->getMessage(), 'SQLITE_BUSY') !== false) {
+                    
+                    $attempt++;
+                    
+                    if ($attempt >= $this->maxRetries) {
+                        error_log("[DATABASE] Max retries reached, giving up");
+                        throw $e;
+                    }
+                    
+                    // Exponential backoff
+                    $delay = $this->retryDelay * pow(2, $attempt - 1);
+                    error_log("[DATABASE] Database locked, retry $attempt/$this->maxRetries after {$delay}ms");
+                    usleep($delay * 1000);
+                    
+                } else {
+                    // Not a lock error, throw immediately
+                    throw $e;
+                }
+            }
+        }
+        
+        return false;
     }
     
     /**
@@ -94,7 +137,7 @@ class CrawlerDatabase {
      * Mark URL as visited
      */
     public function markVisited($url, $baseUrl, $depth = 0, $httpCode = 200) {
-        try {
+        return $this->executeWithRetry(function() use ($url, $baseUrl, $depth, $httpCode) {
             $stmt = $this->db->prepare('
                 INSERT INTO urls (url, base_url, status, depth, http_code, crawled_at)
                 VALUES (?, ?, "crawled", ?, ?, CURRENT_TIMESTAMP)
@@ -105,27 +148,21 @@ class CrawlerDatabase {
             ');
             $stmt->execute([$url, $baseUrl, $depth, $httpCode]);
             return true;
-        } catch (PDOException $e) {
-            error_log("[DATABASE] Failed to mark visited: " . $e->getMessage());
-            return false;
-        }
+        });
     }
     
     /**
      * Add file to database
      */
     public function addFile($fileUrl, $filename, $type, $sourceUrl, $size = null) {
-        try {
+        return $this->executeWithRetry(function() use ($fileUrl, $filename, $type, $sourceUrl, $size) {
             $stmt = $this->db->prepare('
                 INSERT OR IGNORE INTO files (url, filename, type, size, source_url)
                 VALUES (?, ?, ?, ?, ?)
             ');
             $stmt->execute([$fileUrl, $filename, $type, $size, $sourceUrl]);
             return true;
-        } catch (PDOException $e) {
-            error_log("[DATABASE] Failed to add file: " . $e->getMessage());
-            return false;
-        }
+        });
     }
     
     /**
