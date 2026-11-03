@@ -257,7 +257,7 @@ function startCrawling() {
     // Auto-detect if headless mode needed (JavaScript-heavy sites)
     const jsHeavySites = ['zing.vn', 'zingmp3.vn', 'mp3.zing.vn', 'nhaccuatui.com', 'tiktok.com', 'shopee.vn', 'tiki.vn', 'lazada.vn', 'sendo.vn'];
     const useHeadless = jsHeavySites.some(site => urlTextarea.toLowerCase().includes(site));
-    const useQueue = maxPages > 200; // Auto-enable queue for large crawls
+    const useQueue = false; // Queue mode is not available in this build; the server ignores it
 
     // Zing pages can include many embedded links/ads; keep results focused on captured media
     const isZing = ['zing.vn', 'zingmp3.vn', 'mp3.zing.vn'].some(site => urlTextarea.toLowerCase().includes(site));
@@ -268,8 +268,7 @@ function startCrawling() {
         maxDepth, 
         maxPages, 
         extensions, 
-        useHeadless: useHeadless ? 'auto-detected' : 'no', 
-        useQueue: useQueue ? 'auto-enabled' : 'no'
+        useHeadless: useHeadless ? 'auto-detected' : 'no'
     });
 
     
