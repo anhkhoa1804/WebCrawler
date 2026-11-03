@@ -100,10 +100,12 @@ echo.
 echo IMPORTANT: Please RESTART this terminal/cmd window
 echo for PATH changes to take effect!
 echo.
-echo To verify installation after restart:
-echo   ffmpeg -version
+echo Verifying the installed binaries by full path (does not depend on PATH):
+"%INSTALL_DIR%\bin\ffmpeg.exe" -version >nul 2>&1 && (echo   [OK] ffmpeg.exe runs) || (echo   [FAIL] ffmpeg.exe did not run from %INSTALL_DIR%\bin)
+"%INSTALL_DIR%\bin\ffprobe.exe" -version >nul 2>&1 && (echo   [OK] ffprobe.exe runs) || (echo   [FAIL] ffprobe.exe did not run from %INSTALL_DIR%\bin)
 echo.
-echo Test WebCrawler streaming:
-echo   http://localhost:8080/WebCrawler/test_ffmpeg.html
+echo To check from a NEW terminal after the PATH change, run:
+echo   ffmpeg -version
+echo   ffprobe -version
 echo.
 pause
