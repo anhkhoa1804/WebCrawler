@@ -76,9 +76,12 @@ REM Check if already in PATH
 echo %CURRENT_PATH% | find /i "%INSTALL_DIR%\bin" >nul
 if %ERRORLEVEL% EQU 0 (
     echo [INFO] Already in PATH
-) else (
+) else if "%CURRENT_PATH:~900,1%"=="" (
     setx PATH "%CURRENT_PATH%;%INSTALL_DIR%\bin"
     echo [OK] Added to PATH
+) else (
+    echo [WARN] Your user PATH is too long for setx, which would truncate it.
+    echo        Add %INSTALL_DIR%\bin to your PATH manually.
 )
 
 echo.
