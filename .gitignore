@@ -2,6 +2,16 @@
 /tmp/
 *.session
 
+# Dependencies (Large folders)
+/vendor/
+/node_modules/
+composer.phar
+composer-setup.php
+
+# Test files
+test_*.php
+test_*.js
+
 # IDE Files
 .vscode/
 .idea/
