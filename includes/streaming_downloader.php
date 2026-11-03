@@ -9,6 +9,10 @@
  */
 
 class StreamingDownloader {
+    // Limits which protocols FFmpeg may open, including URLs referenced from inside a playlist.
+    // Without this, a crafted playlist could point FFmpeg at local files (file:) and copy them out.
+    private const PROTOCOL_WHITELIST = 'http,https,tcp,tls,crypto';
+
     private $ffmpegPath = 'ffmpeg';
     private $tempDir;
     private $timeout = 300; // 5 minutes max per file
@@ -73,7 +77,7 @@ class StreamingDownloader {
         
         // Every externally supplied value is passed through escapeshellarg: the stream URL comes from the request.
         $command = sprintf(
-            '%s -i %s -c copy -bsf:a aac_adtstoasc -movflags +faststart %s 2>&1',
+            '%s -protocol_whitelist ' . self::PROTOCOL_WHITELIST . ' -i %s -c copy -bsf:a aac_adtstoasc -movflags +faststart %s 2>&1',
             escapeshellarg($this->ffmpegPath),
             escapeshellarg($streamUrl),
             escapeshellarg($outputFile)
@@ -82,7 +86,7 @@ class StreamingDownloader {
         // For audio extraction (MP3)
         if ($outputFormat === 'mp3') {
             $command = sprintf(
-                '%s -i %s -vn -acodec libmp3lame -q:a 2 %s 2>&1',
+                '%s -protocol_whitelist ' . self::PROTOCOL_WHITELIST . ' -i %s -vn -acodec libmp3lame -q:a 2 %s 2>&1',
                 escapeshellarg($this->ffmpegPath),
                 escapeshellarg($streamUrl),
                 escapeshellarg($outputFile)
@@ -135,7 +139,7 @@ class StreamingDownloader {
         $ffprobe = preg_replace('/ffmpeg(\.exe)?$/i', 'ffprobe$1', $this->ffmpegPath);
         
         $command = sprintf(
-            '%s -v quiet -print_format json -show_format -show_streams %s 2>&1',
+            '%s -v quiet -protocol_whitelist ' . self::PROTOCOL_WHITELIST . ' -print_format json -show_format -show_streams %s 2>&1',
             escapeshellarg($ffprobe),
             escapeshellarg($streamUrl)
         );
@@ -173,22 +177,50 @@ class StreamingDownloader {
     }
     
     /**
-     * Execute command with timeout (Windows-safe)
+     * Run a command with a hard time limit.
+     * Non-Windows: the coreutils `timeout` command ends the process.
+     * Windows: the command runs as a child process with its output redirected to a temp log.
+     * When the limit is reached, only that child's process tree is stopped (taskkill /T on its PID).
      */
     private function execWithTimeout($command, $timeout) {
-        // For Windows, use start /wait with timeout
-        if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-            $output = [];
-            $return = 0;
-            
-            // Run command in background with start
-            exec($command, $output, $return);
-            
-            return implode("\n", $output);
+        if (PHP_OS_FAMILY !== 'Windows') {
+            return shell_exec("timeout {$timeout}s $command");
         }
-        
-        // For Linux/Mac, use timeout command
-        return shell_exec("timeout {$timeout}s $command");
+
+        // Redirect to a log file (not a pipe) so a chatty FFmpeg cannot block on a full buffer.
+        $logFile = tempnam($this->tempDir, 'ffmpeg_log_');
+        $base = preg_replace('/\s*2>&1$/', '', $command);
+        $full = $base . ' > ' . escapeshellarg($logFile) . ' 2>&1';
+
+        $descriptors = [
+            0 => ['file', 'NUL', 'r'],
+            1 => ['file', 'NUL', 'w'],
+            2 => ['file', 'NUL', 'w'],
+        ];
+        $proc = proc_open($full, $descriptors, $pipes);
+        if (!is_resource($proc)) {
+            @unlink($logFile);
+            return '';
+        }
+
+        $started = microtime(true);
+        while (true) {
+            $status = proc_get_status($proc);
+            if (!$status['running']) {
+                break;
+            }
+            if (microtime(true) - $started >= $timeout) {
+                error_log("[STREAM] FFmpeg exceeded {$timeout}s and was stopped");
+                exec('taskkill /F /T /PID ' . (int)$status['pid'] . ' >NUL 2>&1');
+                break;
+            }
+            usleep(200000);
+        }
+        proc_close($proc);
+
+        $output = (string)@file_get_contents($logFile);
+        @unlink($logFile);
+        return $output;
     }
     
     /**
@@ -222,6 +254,12 @@ class StreamingDownloader {
         // Be conservative: only accept URLs that clearly identify a streaming manifest.
         // This prevents false-positives like direct MP4 URLs containing "stream" in the path.
         if (!is_string($url) || $url === '') {
+            return false;
+        }
+
+        // Only remote http(s) manifests are accepted; file:, ftp: and other schemes are refused.
+        $scheme = strtolower((string)parse_url($url, PHP_URL_SCHEME));
+        if ($scheme !== 'http' && $scheme !== 'https') {
             return false;
         }
 
