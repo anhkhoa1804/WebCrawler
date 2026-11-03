@@ -35,7 +35,8 @@ async function initBrowser() {
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
             '--disable-gpu',
-            '--disable-web-security', // Allow CORS
+            // --disable-web-security was removed: it turns off same-origin protection for every page
+            // the browser loads. Puppeteer mode must not be used to browse untrusted sites.
             '--autoplay-policy=no-user-gesture-required',
             '--window-size=1920,1080'
         ]
