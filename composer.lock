@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "eb7c90c5e7e4d407df8b9e7bc480fcab",
+    "content-hash": "36ac11ffc7fe53c061e6090abf62b8c7",
     "packages": [
         {
             "name": "masterminds/html5",
@@ -138,68 +138,6 @@
                 "source": "https://github.com/php-webdriver/php-webdriver/tree/1.16.0"
             },
             "time": "2025-12-28T23:57:40+00:00"
-        },
-        {
-            "name": "predis/predis",
-            "version": "v2.4.1",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/predis/predis.git",
-                "reference": "07105e050622ed80bd60808367ced9e379f31530"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/predis/predis/zipball/07105e050622ed80bd60808367ced9e379f31530",
-                "reference": "07105e050622ed80bd60808367ced9e379f31530",
-                "shasum": ""
-            },
-            "require": {
-                "php": "^7.2 || ^8.0"
-            },
-            "require-dev": {
-                "friendsofphp/php-cs-fixer": "^3.3",
-                "phpstan/phpstan": "^1.9",
-                "phpunit/phpcov": "^6.0 || ^8.0",
-                "phpunit/phpunit": "^8.0 || ^9.4"
-            },
-            "suggest": {
-                "ext-relay": "Faster connection with in-memory caching (>=0.6.2)"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Predis\\": "src/"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "MIT"
-            ],
-            "authors": [
-                {
-                    "name": "Till Krüss",
-                    "homepage": "https://till.im",
-                    "role": "Maintainer"
-                }
-            ],
-            "description": "A flexible and feature-complete Redis/Valkey client for PHP.",
-            "homepage": "http://github.com/predis/predis",
-            "keywords": [
-                "nosql",
-                "predis",
-                "redis"
-            ],
-            "support": {
-                "issues": "https://github.com/predis/predis/issues",
-                "source": "https://github.com/predis/predis/tree/v2.4.1"
-            },
-            "funding": [
-                {
-                    "url": "https://github.com/sponsors/tillkruss",
-                    "type": "github"
-                }
-            ],
-            "time": "2025-11-12T18:00:11+00:00"
         },
         {
             "name": "psr/container",
@@ -2011,57 +1949,7 @@
             "time": "2025-09-11T10:15:23+00:00"
         }
     ],
-    "packages-dev": [
-        {
-            "name": "dbrekelmans/bdi",
-            "version": "1.4.1",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/dbrekelmans/bdi.git",
-                "reference": "c2b77127d7aa3fad25d57575c207b54b108ab300"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/dbrekelmans/bdi/zipball/c2b77127d7aa3fad25d57575c207b54b108ab300",
-                "reference": "c2b77127d7aa3fad25d57575c207b54b108ab300",
-                "shasum": ""
-            },
-            "require": {
-                "ext-json": "*",
-                "ext-zip": "*",
-                "ext-zlib": "*",
-                "php": "^8.1"
-            },
-            "bin": [
-                "bdi",
-                "bdi.phar"
-            ],
-            "type": "library",
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "MIT"
-            ],
-            "authors": [
-                {
-                    "name": "Daniël Brekelmans",
-                    "homepage": "https://github.com/dbrekelmans"
-                },
-                {
-                    "name": "Contributors",
-                    "homepage": "https://github.com/dbrekelmans/bdi/graphs/contributors"
-                }
-            ],
-            "description": "PHAR distribution of dbrekelmans/browser-driver-installer.",
-            "homepage": "https://github.com/dbrekelmans/bdi",
-            "keywords": [
-                "browser-driver-installer"
-            ],
-            "support": {
-                "source": "https://github.com/dbrekelmans/bdi/tree/1.4.1"
-            },
-            "time": "2025-11-03T11:32:28+00:00"
-        }
-    ],
+    "packages-dev": [],
     "aliases": [],
     "minimum-stability": "stable",
     "stability-flags": {},
@@ -2071,5 +1959,5 @@
         "php": ">=7.4"
     },
     "platform-dev": {},
-    "plugin-api-version": "2.9.0"
+    "plugin-api-version": "2.6.0"
 }

@@ -1,26 +1,16 @@
 {
     "name": "webcrawler/advanced",
-    "description": "Advanced Web Crawler with Headless Browser and Redis Queue System",
+    "description": "Web crawler and media file downloader with optional headless-browser fetching",
     "version": "2.0.0",
     "type": "project",
     "require": {
         "php": ">=7.4",
-        "predis/predis": "^2.0",
         "symfony/panther": "^2.4"
-    },
-    "require-dev": {
-        "dbrekelmans/bdi": "^1.0"
     },
     "autoload": {
         "psr-4": {
         "WebCrawler\\": "includes/"
         }
-    },
-    "scripts": {
-        "post-install-cmd": [
-        "@php -r \"echo '\\n✅ Composer packages installed successfully!\\n';\"",
-        "@php -r \"echo '📖 Read INSTALLATION_GUIDE.md for setup instructions\\n';\""
-        ]
     },
     "config": {
         "optimize-autoloader": true,
