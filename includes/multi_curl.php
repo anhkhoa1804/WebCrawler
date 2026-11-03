@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/http_safety.php';
 /**
  * cURL Multi-Exec Module - Parallel HTTP Requests
  * Fetch multiple URLs simultaneously without complex threading
@@ -100,8 +101,7 @@ class MultiCurl {
         curl_setopt($ch, CURLOPT_MAXREDIRS, 3);
         curl_setopt($ch, CURLOPT_TIMEOUT, $this->timeout);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+        wc_apply_http_safety($ch);
         curl_setopt($ch, CURLOPT_ENCODING, '');
         
         // Headers

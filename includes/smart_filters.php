@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/http_safety.php';
 /**
  * Smart Filters Module - Heuristic-based File Filtering
  * Filter files by size, dimensions, quality without AI
@@ -67,7 +68,7 @@ class SmartFilters {
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                 curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
                 curl_setopt($ch, CURLOPT_TIMEOUT, 5);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                wc_apply_http_safety($ch);
                 
                 curl_multi_add_handle($multiHandle, $ch);
                 $handles[$url] = $ch;
@@ -187,7 +188,7 @@ class SmartFilters {
         curl_setopt($ch, CURLOPT_NOBODY, true); // HEAD request
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 5);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        wc_apply_http_safety($ch);
         
         curl_exec($ch);
         $size = curl_getinfo($ch, CURLINFO_CONTENT_LENGTH_DOWNLOAD);

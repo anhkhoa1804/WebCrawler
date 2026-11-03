@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/http_safety.php';
 // Load Composer packages (e.g. symfony/panther) when installed, so the Panther check can see them.
 $wcAutoload = __DIR__ . '/../vendor/autoload.php';
 if (is_file($wcAutoload)) {
@@ -347,8 +348,7 @@ class HeadlessBrowser {
         
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
         curl_setopt($ch, CURLOPT_ENCODING, "");
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+        wc_apply_http_safety($ch);
         
         if ($this->cookieFile) {
             curl_setopt($ch, CURLOPT_COOKIEJAR, $this->cookieFile);

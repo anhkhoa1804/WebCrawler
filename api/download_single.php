@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../includes/http_safety.php';
 set_time_limit(300);
 
 $input = json_decode(file_get_contents('php://input'), true);
@@ -44,7 +45,7 @@ $ch = curl_init($url);
 curl_setopt($ch, CURLOPT_FILE, $fp);
 curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
 curl_setopt($ch, CURLOPT_TIMEOUT, 60);
-curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+wc_apply_http_safety($ch);
 curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
 
 // Some providers (notably TikTok) behave better with a proper Referer/Origin.

@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/http_safety.php';
 ini_set('display_errors', 0);
 ini_set('max_execution_time', 300);
 error_reporting(E_ALL);
@@ -244,8 +245,7 @@ class WebCrawler {
         
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
         curl_setopt($ch, CURLOPT_ENCODING, "");
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+        wc_apply_http_safety($ch);
         curl_setopt($ch, CURLOPT_COOKIEJAR, $this->cookieFile);
         curl_setopt($ch, CURLOPT_COOKIEFILE, $this->cookieFile);
         curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2_0);

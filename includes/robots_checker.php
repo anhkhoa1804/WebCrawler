@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/http_safety.php';
 class RobotsChecker {
     private $robotsContent = '';
     private $disallowedPaths = [];
@@ -17,7 +18,7 @@ class RobotsChecker {
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 5);
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        wc_apply_http_safety($ch);
         
         $content = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
