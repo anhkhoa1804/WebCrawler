@@ -19,6 +19,10 @@ if ($debugMode) {
 $logFile = __DIR__ . '/../data/crawl_debug.log';
 function debugLog($message) {
     global $logFile;
+    // Keep the log bounded: once it passes 1 MB, move it aside (one previous copy is kept as .1).
+    if (is_file($logFile) && filesize($logFile) > 1048576) {
+        @rename($logFile, $logFile . '.1');
+    }
     $timestamp = date('Y-m-d H:i:s');
     file_put_contents($logFile, "[$timestamp] $message\n", FILE_APPEND);
 }
@@ -197,17 +201,19 @@ try {
         $options['nct_max_songs'] = max(1, min((int)$maxPages, 30));
     }
     
-    // Enable queue system for large crawls or if manually requested
+    // Queue mode and login are not available in this build. Requests for them are ignored and reported in "warnings".
+    $warnings = [];
     if ($maxPages > 200 || (isset($input['use_queue']) && $input['use_queue'])) {
-        $options['use_queue'] = true;
+        $warnings[] = 'Queue mode is not available in this build; the crawl ran synchronously.';
     }
-    
-    // Handle login/authentication if provided
     if (isset($input['login']) && is_array($input['login'])) {
-        $options['login'] = $input['login'];
+        $warnings[] = 'Login is not available in this build; the login settings were ignored.';
     }
     
-    if ($maxPages > 100) $maxPages = 100;
+    if ($maxPages > 100) {
+        $warnings[] = 'maxPages was capped at 100.';
+        $maxPages = 100;
+    }
     
     if (!empty($input['proxy_list']) && !empty($input['use_proxy'])) {
         $lines = explode("\n", $input['proxy_list']);
@@ -280,6 +286,10 @@ try {
         }
     }
     
+    if (!empty($warnings)) {
+        $response['warnings'] = $warnings;
+    }
+
     debugLog("Response: " . json_encode(['files_count' => count($files), 'stats' => $stats]));
     
     ob_clean();
