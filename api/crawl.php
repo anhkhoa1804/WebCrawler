@@ -72,6 +72,11 @@ if (isset($_GET['progress'])) {
         $sid = (string)$_COOKIE['PHPSESSID'];
     }
 
+    // Session IDs are limited to safe characters; a crafted PHPSESSID cookie must not reach the file path.
+    if (!preg_match('/^[A-Za-z0-9,-]{8,128}$/', (string)$sid)) {
+        $sid = '';
+    }
+
     // Use file-based progress instead of session to avoid locking
     $progressFile = sys_get_temp_dir() . '/crawler_progress_' . $sid . '.json';
     

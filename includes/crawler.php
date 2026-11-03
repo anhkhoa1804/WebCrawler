@@ -96,7 +96,9 @@ class WebCrawler {
         }
         
         // Initialize Login Handler if credentials provided
-        if (isset($options['login']) && is_array($options['login'])) {
+        if (isset($options['login']) && is_array($options['login']) && !class_exists('LoginHandler')) {
+            error_log("[CRAWLER] Login requested but LoginHandler is not installed; continuing without login");
+        } elseif (isset($options['login']) && is_array($options['login'])) {
             $this->loginHandler = new LoginHandler($this->cookieFile);
             
             // Perform login
@@ -150,7 +152,9 @@ class WebCrawler {
         }
         
         // Initialize Queue System if enabled
-        if (isset($options['use_queue']) && $options['use_queue']) {
+        if (isset($options['use_queue']) && $options['use_queue'] && !class_exists('CrawlerQueue')) {
+            error_log("[CRAWLER] Queue requested but CrawlerQueue is not installed; crawling without queue");
+        } elseif (isset($options['use_queue']) && $options['use_queue']) {
             try {
                 $this->queue = new CrawlerQueue([
                     'session_id' => $this->sessionId ?? uniqid('session_', true),
