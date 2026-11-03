@@ -1,4 +1,10 @@
 <?php
+// Load Composer packages (e.g. symfony/panther) when installed, so the Panther check can see them.
+$wcAutoload = __DIR__ . '/../vendor/autoload.php';
+if (is_file($wcAutoload)) {
+    require_once $wcAutoload;
+}
+
 /**
  * Headless Browser Integration
  * Supports both Symfony Panther (PHP) and Puppeteer (Node.js bridge)
@@ -434,7 +440,8 @@ class HeadlessBrowser {
         $tempJsonFile = sys_get_temp_dir() . '/puppeteer_' . uniqid() . '.json';
         file_put_contents($tempJsonFile, json_encode($puppeteerOptions));
         
-        $command = "node \"$bridgePath\" \"@$tempJsonFile\" 2>&1";
+        // stderr is not merged: the bridge writes progress logs there, and mixing them into stdout breaks the JSON reply.
+        $command = "node \"$bridgePath\" \"@$tempJsonFile\"";
         $output = shell_exec($command);
         
         @unlink($tempJsonFile);

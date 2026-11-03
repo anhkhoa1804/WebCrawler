@@ -84,6 +84,8 @@ function releasePage(pageObj) {
 async function fetchPage(options) {
     const pageObj = await getAvailablePage();
     const { page } = pageObj;
+    let requestHandler = null;
+    let responseHandler = null;
     
     try {
         const capturedMedia = {
@@ -170,8 +172,8 @@ async function fetchPage(options) {
         // Setup network interception
         await page.setRequestInterception(true);
         
-        const requestHandler = (request) => request.continue();
-        const responseHandler = async (response) => {
+        requestHandler = (request) => request.continue();
+        responseHandler = async (response) => {
             const url = response.url();
             const contentType = response.headers()['content-type'] || '';
             
@@ -778,6 +780,9 @@ async function fetchPage(options) {
             error: error.message
         };
     } finally {
+        // Detach this request's listeners on every path so a failed fetch cannot leave handlers on the pooled page.
+        if (requestHandler) page.removeListener('request', requestHandler);
+        if (responseHandler) page.removeListener('response', responseHandler);
         // Clear page for next use
         try {
             await page.goto('about:blank');
@@ -863,7 +868,8 @@ process.on('SIGINT', async () => {
 
 // Start server
 initBrowser().then(() => {
-    server.listen(PORT, () => {
+    // Loopback only: this endpoint drives a browser with web security disabled.
+    server.listen(PORT, '127.0.0.1', () => {
         console.log(`[SERVER] Puppeteer server listening on http://localhost:${PORT}`);
         console.log(`[SERVER] Usage: POST to /fetch with JSON: {"url":"https://example.com"}`);
         console.log(`[SERVER] Health check: GET /health`);
