@@ -2,7 +2,7 @@
 
 A PHP web application that crawls a website, finds downloadable media and documents, and lets you preview them, download them one at a time, or download a selection as a ZIP archive. It runs on an Apache/PHP stack such as XAMPP, and it has no required external services.
 
-> **Status: work in progress.** This is a personal/educational project. It has not been load-tested or audited, and it is not production-ready. Read [Security](#security) before running it anywhere other than your own machine.
+> **Status: work in progress.** This is a personal and educational project. The code has not been load-tested or independently security-reviewed, so treat it as not production-ready. Read [Security](#security) before running it anywhere other than your own machine.
 
 Licensed under the [MIT License](LICENSE).
 
